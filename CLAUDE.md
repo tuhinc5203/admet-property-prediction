@@ -42,6 +42,9 @@ structure, using RDKit + PyTDC + scikit-learn.
   **All 5 datasets now have basic EDA complete.** Next EDA task per the project plan (Week 1 steps 3–4): plot MW/LogP/other descriptors against each target, and write a plain-language "why this property matters" note per dataset.
 - **Week 1 step 3 — descriptor plots** (MolWt, MolLogP, TPSA, NumHDonors, NumHAcceptors vs target, computed via RDKit): placed inside each dataset's own section, regression datasets use scatter plots, classification datasets use box plots grouped by class.
   - **Solubility done:** MolLogP shows the cleanest, strongest negative trend with target (chemically expected — more lipophilic = less water-soluble). MolWt and TPSA show a weaker "upper bound drops as descriptor increases" pattern. NumHDonors/NumHAcceptors show no strong visible trend. See **Outliers to investigate** below for extreme-value findings from this pass.
+  - **BBB done:** TPSA shows the cleanest class separation of any descriptor seen so far (non-permeable centered ~110, permeable centered ~40-50, boxes barely overlap) — independently reproduces the known "TPSA < ~90" rule of thumb for BBB penetration. MolLogP also separates well (permeable skews higher). MolWt shows weak separation.
+  - **hERG done:** MolLogP is the strongest separator (blockers skew higher, ~2.5-4 vs ~0-2.5) — consistent with known med-chem knowledge that lipophilic, basic-amine compounds are more prone to hERG liability. TPSA separates mildly in the opposite direction from BBB (non-blockers trend higher). MolWt/HBD/HBA show weak signal.
+- **`NOTES.md` created** — a running reasoning/glossary document (why each property matters + technical concept definitions), separate from this file. Meant to become README material later.
 
 ## Outliers to investigate
 
@@ -52,11 +55,13 @@ Running log of extreme/suspicious values surfaced while generating the descripto
   - `MolWt` as high as 2968, 2560, 2420: a tungsten salt, a SMILES that concatenates several unrelated compounds with `.` (looks like a formulation/mixture record rather than a single pure compound), and a large sulfonated azo dye salt.
   - `TPSA` as high as 966, 794, 743: a molybdenum-ammonia coordination complex and large sulfonated dye salts.
   - **Common thread:** none of these are typical small organic drug-like molecules — they're salts, coordination complexes, or multi-fragment mixtures. Worth deciding later whether to filter these out (or handle multi-fragment SMILES specially) before modeling, since descriptor calculations and downstream featurization may behave oddly on them.
+  - Also: RDKit's "not removing hydrogen atom without neighbors" warning (37/6988 Solubility train molecules) traces to the same pattern — salts with standalone unbonded `[H+]`/`[H-]` ions. Benign, see `NOTES.md` for the full explanation.
+- **hERG — Clofilium phosphate (`MolLogP` 16.6, `MolWt` 1112) is a real drug, not a data artifact, but its SMILES is a 3:1 salt** (three copies of the clofilium cation joined by `.` with one phosphate counter-ion). RDKit computes descriptors over the full multi-fragment SMILES, so MolWt/MolLogP are roughly tripled relative to the single active cation. Different failure mode than Solubility's outliers — worth deciding later whether multi-copy salts like this need special handling (e.g. taking the largest/parent fragment) before featurization.
 
 ## Next steps
 
-- Week 1 step 3: descriptor plots for BBB, hERG, CYP3A4, Clearance (Solubility done)
-- Week 1 step 4: short markdown write-up per dataset on why the property matters in drug development (README material later)
+- Week 1 step 3: descriptor plots for CYP3A4, Clearance (Solubility, BBB, hERG done)
+- Week 1 step 4: short markdown write-up per dataset on why the property matters in drug development — now largely covered by `NOTES.md`'s "Why each property matters" section, just needs folding into the notebook itself if still wanted there
 - Investigate the full "Outliers to investigate" log once descriptor generation is complete across all 5 datasets
 - At modeling time, decide how to handle:
   - Recurring label-conflict and train/valid/test leakage findings (BBB, hERG, Clearance)
