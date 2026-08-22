@@ -33,12 +33,22 @@ structure, using RDKit + PyTDC + scikit-learn.
     - Class balance close to even: 59% non-inhibitor (`Y=0`) vs 41% inhibitor (`Y=1`) — most balanced dataset so far
     - Zero duplicate Drug_ID, zero duplicate SMILES, zero train/valid/test leakage — cleanest dataset so far, no decisions needed
     - `Drug_ID` here is a numeric PubChem CID, not a compound name like the other datasets
+  - **Clearance EDA done — messiest dataset in the panel:**
+    - 1,213 compounds total (smallest dataset), no missing data
+    - Regression target `Y` heavily right-skewed (mean 42.8, median 19.05, range 3.0–150.0)
+    - **Assay censoring:** 16% of rows sit at exactly `Y=3.0`, 11% at exactly `Y=150.0` — strong evidence these are `<3`/`>150` assay boundary values, not real point measurements. Flagged as a modeling constraint (consider censored regression or bucketing near the extremes), not fixed now
+    - 94/849 duplicate SMILES (11%, by far the most of any dataset) and heavy train/valid/test leakage (30/54/5 overlaps) — noted, deferred to modeling time, but will need the most deliberate cleanup of the 5 datasets
+
+  **All 5 datasets now have basic EDA complete.** Next EDA task per the project plan (Week 1 steps 3–4): plot MW/LogP/other descriptors against each target, and write a plain-language "why this property matters" note per dataset.
 
 ## Next steps
 
-- Run the same basic-EDA pass (count, class balance, distribution, missing data) for:
-  - Clearance (the last of the 5 datasets)
-- At modeling time, decide how to handle the recurring label-conflict and train/valid/test leakage findings from BBB and hERG (see Issues encountered)
+- Week 1 step 3: plot molecular weight, LogP, and other basic descriptors against the target for each of the 5 datasets (build intuition, not yet done for any dataset)
+- Week 1 step 4: short markdown write-up per dataset on why the property matters in drug development (README material later)
+- At modeling time, decide how to handle:
+  - Recurring label-conflict and train/valid/test leakage findings (BBB, hERG, Clearance)
+  - Clearance's assay-censoring pattern at Y=3.0/150.0
+  - Clearance's especially heavy duplication/leakage (see Issues encountered)
 
 ## Issues encountered
 
