@@ -40,15 +40,29 @@ structure, using RDKit + PyTDC + scikit-learn.
     - 94/849 duplicate SMILES (11%, by far the most of any dataset) and heavy train/valid/test leakage (30/54/5 overlaps) — noted, deferred to modeling time, but will need the most deliberate cleanup of the 5 datasets
 
   **All 5 datasets now have basic EDA complete.** Next EDA task per the project plan (Week 1 steps 3–4): plot MW/LogP/other descriptors against each target, and write a plain-language "why this property matters" note per dataset.
+- **Week 1 step 3 — descriptor plots** (MolWt, MolLogP, TPSA, NumHDonors, NumHAcceptors vs target, computed via RDKit): placed inside each dataset's own section, regression datasets use scatter plots, classification datasets use box plots grouped by class.
+  - **Solubility done:** MolLogP shows the cleanest, strongest negative trend with target (chemically expected — more lipophilic = less water-soluble). MolWt and TPSA show a weaker "upper bound drops as descriptor increases" pattern. NumHDonors/NumHAcceptors show no strong visible trend. See **Outliers to investigate** below for extreme-value findings from this pass.
+
+## Outliers to investigate
+
+Running log of extreme/suspicious values surfaced while generating the descriptor plots — flagged for a closer look later, not acted on yet.
+
+- **Solubility — extreme MolLogP/MolWt/TPSA values trace to non-drug-like entries, not real outlier drugs:**
+  - `MolLogP` as low as -40.87, -29.06, -27.34: inorganic salts (a borate salt, a tungsten oxoanion salt, a lithium/aluminum fluoride salt). RDKit's Crippen LogP model is parameterized for organic molecules and gives physically implausible values on these.
+  - `MolWt` as high as 2968, 2560, 2420: a tungsten salt, a SMILES that concatenates several unrelated compounds with `.` (looks like a formulation/mixture record rather than a single pure compound), and a large sulfonated azo dye salt.
+  - `TPSA` as high as 966, 794, 743: a molybdenum-ammonia coordination complex and large sulfonated dye salts.
+  - **Common thread:** none of these are typical small organic drug-like molecules — they're salts, coordination complexes, or multi-fragment mixtures. Worth deciding later whether to filter these out (or handle multi-fragment SMILES specially) before modeling, since descriptor calculations and downstream featurization may behave oddly on them.
 
 ## Next steps
 
-- Week 1 step 3: plot molecular weight, LogP, and other basic descriptors against the target for each of the 5 datasets (build intuition, not yet done for any dataset)
+- Week 1 step 3: descriptor plots for BBB, hERG, CYP3A4, Clearance (Solubility done)
 - Week 1 step 4: short markdown write-up per dataset on why the property matters in drug development (README material later)
+- Investigate the full "Outliers to investigate" log once descriptor generation is complete across all 5 datasets
 - At modeling time, decide how to handle:
   - Recurring label-conflict and train/valid/test leakage findings (BBB, hERG, Clearance)
   - Clearance's assay-censoring pattern at Y=3.0/150.0
   - Clearance's especially heavy duplication/leakage (see Issues encountered)
+  - Non-drug-like outlier entries (salts/mixtures/inorganics) found during descriptor plotting (see Outliers to investigate)
 
 ## Issues encountered
 
