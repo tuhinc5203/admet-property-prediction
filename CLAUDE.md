@@ -28,12 +28,16 @@ structure, using RDKit + PyTDC + scikit-learn.
     - Class balance skewed: 68% blockers (`Y=1`) vs 32% not (`Y=0`)
     - 5 duplicate SMILES groups in train, 2 with conflicting labels — both sertindole-related analogs (`BMCL20031829_19`/`SERTINDOLE19`, `BMCL20031829_22`/`SERTINDOLE22`), same label-noise pattern as BBB, deferred to modeling time
     - Small leakage: 2 molecules in both train/test, 0 elsewhere — deferred to modeling time
+  - **CYP3A4 inhibition EDA done:**
+    - 12,328 compounds total (largest dataset so far), no missing data
+    - Class balance close to even: 59% non-inhibitor (`Y=0`) vs 41% inhibitor (`Y=1`) — most balanced dataset so far
+    - Zero duplicate Drug_ID, zero duplicate SMILES, zero train/valid/test leakage — cleanest dataset so far, no decisions needed
+    - `Drug_ID` here is a numeric PubChem CID, not a compound name like the other datasets
 
 ## Next steps
 
 - Run the same basic-EDA pass (count, class balance, distribution, missing data) for:
-  - CYP3A4
-  - Clearance
+  - Clearance (the last of the 5 datasets)
 - At modeling time, decide how to handle the recurring label-conflict and train/valid/test leakage findings from BBB and hERG (see Issues encountered)
 
 ## Issues encountered
