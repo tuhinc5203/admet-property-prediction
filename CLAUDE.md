@@ -12,7 +12,7 @@ structure, using RDKit + PyTDC + scikit-learn.
   - `admet` conda env: RDKit, PyTDC, scikit-learn, pandas, matplotlib, jupyter installed and verified
   - Kernel wired into VS Code; `RDKit-test.ipynb` loads/draws aspirin to confirm the install
   - Git repo initialized and pushed to GitHub
-- **Week 1 — data + EDA** (`Data_EDA.ipynb`)
+- **Week 1 — data + EDA — COMPLETE** (`Data_EDA.ipynb`)
   - All 5 ADMET datasets loaded via PyTDC: `Solubility_AqSolDB`, `BBB_Martins`, `hERG`, `CYP3A4_Veith`, `Clearance_Hepatocyte_AZ`
   - **Solubility EDA done:**
     - 9,982 compounds total, no missing data
@@ -51,6 +51,7 @@ structure, using RDKit + PyTDC + scikit-learn.
 - **Outliers investigated — largest-fragment salt stripping added to `compute_descriptors`** (see `NOTES.md`'s "Largest-fragment (salt) stripping" for the full explanation). Applied globally (all 5 datasets re-run), fixed:
   - hERG's Clofilium phosphate: MolWt 1112→339, MolLogP 16.6→6.5 — now correctly represents the single active cation, fully resolved.
   - Solubility's inorganic salts: MolWt/MolLogP shrank substantially (e.g. borate salt 588→59 MolWt, -40.9→-3.9 MolLogP; tungsten salt 2968→248 MolWt, -29.1→-2.6 MolLogP) — no longer absurd, though still not chemically "typical" since the largest fragment is still a small inorganic ion, not an organic drug. Expected and acceptable — see below.
+  - **Week 1 deliverable met:** one combined notebook (`Data_EDA.ipynb`) with all 5 datasets loaded, cleaned, and explored (counts, missing data, class balance/distribution, duplicate/leakage checks, descriptor-vs-target plots, salt-stripping cleanup), each with a "why it matters" pointer to `NOTES.md`. Committed and pushed throughout.
 
 ## Outliers to investigate — resolved / remaining
 
@@ -63,12 +64,17 @@ structure, using RDKit + PyTDC + scikit-learn.
 
 ## Next steps
 
-- Week 1 step 4: short markdown write-up per dataset on why the property matters in drug development — now largely covered by `NOTES.md`'s "Why each property matters" section, just needs folding into the notebook itself if still wanted there
-- At modeling time, decide how to handle:
+- **Week 2 — featurization + baseline models** (per the project plan):
+  - Generate Morgan fingerprints (RDKit) per molecule as the primary ML representation, plus a handful of interpretable Lipinski-style descriptors (MW, LogP, HBD/HBA, rotatable bonds) — `largest_fragment()` and `compute_descriptors()` from `Data_EDA.ipynb` are reusable starting points here
+  - Use TDC's provided scaffold split (not random) for train/test — already available as `*_split['train']`/`['test']` for all 5 datasets
+  - Train a baseline random forest (scikit-learn) per property
+  - Evaluate: ROC-AUC for classification (BBB, hERG, CYP3A4), RMSE/R² for regression (Solubility, Clearance); compare against the public TDC leaderboard for context
+  - Deliverable: a working baseline model per property with recorded metrics, committed to GitHub
+- Decisions carried over from Week 1, to resolve during Week 2 featurization:
   - Recurring label-conflict and train/valid/test leakage findings (BBB, hERG, Clearance)
   - Clearance's assay-censoring pattern at Y=3.0/150.0
   - Clearance's especially heavy duplication/leakage (see Issues encountered)
-  - Whether `largest_fragment()` should also be applied before actual model featurization (not just EDA descriptor plots) — likely yes, same reasoning applies
+  - Apply `largest_fragment()` salt stripping before featurization too, not just EDA descriptor plots — same reasoning as Week 1
 
 ## Issues encountered
 
