@@ -48,33 +48,27 @@ structure, using RDKit + PyTDC + scikit-learn.
   - **Clearance done:** no descriptor shows a clean trend — the plots are dominated by the assay-censoring pattern found in basic EDA, visible as dense horizontal bands of points pinned at `Y=150` (ceiling) and `Y=3` (floor) across every descriptor.
   - **All 5 datasets now have descriptor plots complete.**
 - **`NOTES.md` created** — a running reasoning/glossary document (why each property matters + technical concept definitions), separate from this file. Meant to become README material later.
+- **Outliers investigated — largest-fragment salt stripping added to `compute_descriptors`** (see `NOTES.md`'s "Largest-fragment (salt) stripping" for the full explanation). Applied globally (all 5 datasets re-run), fixed:
+  - hERG's Clofilium phosphate: MolWt 1112→339, MolLogP 16.6→6.5 — now correctly represents the single active cation, fully resolved.
+  - Solubility's inorganic salts: MolWt/MolLogP shrank substantially (e.g. borate salt 588→59 MolWt, -40.9→-3.9 MolLogP; tungsten salt 2968→248 MolWt, -29.1→-2.6 MolLogP) — no longer absurd, though still not chemically "typical" since the largest fragment is still a small inorganic ion, not an organic drug. Expected and acceptable — see below.
 
-## Outliers to investigate
+## Outliers to investigate — resolved / remaining
 
-Running log of extreme/suspicious values surfaced while generating the descriptor plots — flagged for a closer look later, not acted on yet.
-
-- **Solubility — extreme MolLogP/MolWt/TPSA values trace to non-drug-like entries, not real outlier drugs:**
-  - `MolLogP` as low as -40.87, -29.06, -27.34: inorganic salts (a borate salt, a tungsten oxoanion salt, a lithium/aluminum fluoride salt). RDKit's Crippen LogP model is parameterized for organic molecules and gives physically implausible values on these.
-  - `MolWt` as high as 2968, 2560, 2420: a tungsten salt, a SMILES that concatenates several unrelated compounds with `.` (looks like a formulation/mixture record rather than a single pure compound), and a large sulfonated azo dye salt.
-  - `TPSA` as high as 966, 794, 743: a molybdenum-ammonia coordination complex and large sulfonated dye salts.
-  - **Common thread:** none of these are typical small organic drug-like molecules — they're salts, coordination complexes, or multi-fragment mixtures. Worth deciding later whether to filter these out (or handle multi-fragment SMILES specially) before modeling, since descriptor calculations and downstream featurization may behave oddly on them.
-  - Also: RDKit's "not removing hydrogen atom without neighbors" warning (37/6988 Solubility train molecules) traces to the same pattern — salts with standalone unbonded `[H+]`/`[H-]` ions. Benign, see `NOTES.md` for the full explanation.
-- **hERG — Clofilium phosphate (`MolLogP` 16.6, `MolWt` 1112) is a real drug, not a data artifact, but its SMILES is a 3:1 salt** (three copies of the clofilium cation joined by `.` with one phosphate counter-ion). RDKit computes descriptors over the full multi-fragment SMILES, so MolWt/MolLogP are roughly tripled relative to the single active cation. Different failure mode than Solubility's outliers — worth deciding later whether multi-copy salts like this need special handling (e.g. taking the largest/parent fragment) before featurization.
-- **CYP3A4 — extreme MolWt/MolLogP values trace to genuinely large real molecules, not artifacts this time:**
-  - PubChem CID 4469 (MolLogP -24.4, MolWt 1505): a large polysulfonated anionic dye-like compound — real organic structure, just highly polar and unusually large.
-  - PubChem CID 6604947 (MolWt 1736, MolLogP 10.8): an avermectin-like macrolide natural product (macrocyclic lactone with sugar rings) — a legitimately large drug-like structure.
-  - PubChem CID 434172 (MolWt 1298, MolLogP 20.75): a calixarene-type macrocycle (repeating tert-butylphenol units) — unusual supramolecular chemistry, not a typical small-molecule drug.
-  - **Different pattern than Solubility/hERG:** these aren't salts or data artifacts, just real molecules far outside typical drug-like size range. Worth deciding later whether to treat as legitimate hard cases or exclude as non-representative of typical oral drugs.
+- ✅ **Solubility & hERG multi-fragment salt inflation — resolved by largest-fragment stripping** (see above). Remaining residual weirdness in Solubility's inorganic salts (still unusual LogP values post-stripping) is inherent to those compounds not being organic molecules at all — not a bug, just a property of a few non-drug-like entries in the dataset. No further action planned; flagged as acceptable data noise.
+- ⏸️ **CYP3A4 — genuinely large real molecules, not salts, left as-is (decided, not a bug):**
+  - PubChem CID 4469 (MolLogP -24.4, MolWt 1505): a large polysulfonated anionic dye-like compound.
+  - PubChem CID 6604947 (MolWt 1736, MolLogP 10.8): an avermectin-like macrolide natural product.
+  - PubChem CID 434172 (MolWt 1298, MolLogP 20.75): a calixarene-type macrocycle.
+  - Decision: keep as-is, don't filter. These are legitimate, real molecules — not data artifacts — just far outside typical oral drug-like size range. Documented here for awareness; revisit only if they turn out to cause modeling problems (e.g. as high-leverage points in a linear model).
 
 ## Next steps
 
 - Week 1 step 4: short markdown write-up per dataset on why the property matters in drug development — now largely covered by `NOTES.md`'s "Why each property matters" section, just needs folding into the notebook itself if still wanted there
-- Investigate the full "Outliers to investigate" log now that descriptor generation is complete across all 5 datasets
 - At modeling time, decide how to handle:
   - Recurring label-conflict and train/valid/test leakage findings (BBB, hERG, Clearance)
   - Clearance's assay-censoring pattern at Y=3.0/150.0
   - Clearance's especially heavy duplication/leakage (see Issues encountered)
-  - Non-drug-like outlier entries (salts/mixtures/inorganics) and genuinely-large-molecule outliers (CYP3A4) found during descriptor plotting (see Outliers to investigate)
+  - Whether `largest_fragment()` should also be applied before actual model featurization (not just EDA descriptor plots) — likely yes, same reasoning applies
 
 ## Issues encountered
 
