@@ -60,6 +60,34 @@ Used for the regression target-distribution histograms (Solubility, Clearance). 
 
 ## Featurization & Baseline Modeling
 
+### The model's process: what goes in, what it's compared against
+Two separate things are easy to conflate — the *input* the model uses to predict, and the *ground truth* its predictions get checked against. Neither is the same as the model's own prediction.
+
+**What goes in (the features, `X`) — 2053 numbers per molecule, identical set for every property:**
+
+| Piece | Size | What it is |
+|---|---|---|
+| Morgan fingerprint bits | 2048 columns (`fp_0`...`fp_2047`) | 0/1 flags: does some local substructure (an atom + its neighbors out to 2 bonds) hash to this position? Fine-grained structural detail, not individually human-interpretable. |
+| MolWt, MolLogP, NumHDonors, NumHAcceptors, NumRotatableBonds | 5 columns | Lipinski-style descriptors, each with a direct physical meaning — see the descriptor table earlier in this file. |
+
+Same 2053-column recipe for Solubility, BBB, hERG, and CYP3A4 — only `Y` (the target) and the model type (regressor vs. classifier) change between properties, never the feature set. Note `featurize()` uses `NumRotatableBonds` here, not `TPSA` — TPSA was one of Week 1 EDA's 5 descriptors but isn't currently in the Week 2 feature set (the project plan's Week 2 descriptor list swaps it for rotatable bonds); worth reconsidering for Week 3's feature-importance pass given TPSA was the single cleanest class-separator found for BBB in Week 1.
+
+**What it's compared against (the target, `Y`) — real wet-lab measurements, not another prediction:**
+
+| Property | What `Y` actually is | How it was measured |
+|---|---|---|
+| Solubility | Continuous logS | Real aqueous solubility measurements, aggregated into AqSolDB |
+| BBB | Binary permeable/not | Measured brain-to-plasma concentration ratios in animal studies, thresholded |
+| hERG | Binary blocker/not | Patch-clamp electrophysiology IC50 measurements against the hERG channel, thresholded |
+| CYP3A4 | Binary inhibitor/not | High-throughput enzyme inhibition assay (PubChem bioassay, Veith et al.), thresholded |
+
+**The actual workflow, in order:**
+1. **Train:** the model sees (structure → real measurement) pairs for the training molecules only, and learns how structural features relate to the measured outcome.
+2. **Predict:** for test molecules — which the scaffold split deliberately makes structurally *different* from anything in training — the model is given only the structure and has to extrapolate a guess, with no access to their real measurements.
+3. **Compare:** `evaluate_regression()`/`evaluate_classification()` reveal the test molecules' true `Y` values and score how close the guesses were. Every TDC leaderboard entry is scored the exact same way, against the same `Y` values in the same official test split — that shared ground truth is what makes our numbers and the leaderboard's directly comparable.
+
+Because `Y` itself comes from real (sometimes noisy, sometimes cross-study-inconsistent — see the BBB label-conflict case below) lab measurements rather than a mathematically perfect ground truth, no model should be expected to reach a perfect score — some gap below 1.0 reflects genuine measurement noise in the data, not just model weakness.
+
 ### Morgan fingerprints
 A model can't read a SMILES string directly — it needs a fixed-length numeric vector. A Morgan fingerprint builds one by walking out from every atom to a fixed `radius` (2 bonds here), hashing each local neighborhood it finds into a position in an `n_bits`-length bit vector (2048 here) and setting that bit to 1. Every molecule, regardless of its actual size, ends up as the same-length vector of structural "this substructure is present somewhere" flags — radius 2 / 2048 bits is the standard cheminformatics default. It's a *bit* vector (present/absent), not a count vector (how many times), which is a reasonable simplification for a baseline model.
 

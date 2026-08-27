@@ -80,7 +80,11 @@ structure, using RDKit + PyTDC + scikit-learn.
     - Results: ROC-AUC 0.851, F1 0.910, balanced accuracy 0.739
     - Compared against the live TDC leaderboard (tdcommons.ai/benchmark/admet_group/20herg): SOTA is MapLight+GNN at 0.880; our baseline (0.851) beats half the top 10 (MiniMol 0.846, RDKit2D+MLP 0.841, Chemprop-RDKit 0.840, ADMETrix 0.836, AttentiveFP 0.825) — the strongest relative-to-leaderboard showing of the three properties done so far.
     - Duplicate/label-conflict cleanup (Week 1 flagged 5 groups in train, incl. the sertindole analogs) applied automatically via `load_scaffold_split()`, no separate step needed this time.
-  - **Remaining for Week 2:** CYP3A4 (`RandomForestClassifier` + ROC-AUC) and Clearance (`RandomForestRegressor` + RMSE/R², mind the assay-censoring issue below).
+  - **CYP3A4 inhibition done** (`load_scaffold_split(ADME, 'CYP3A4_Veith')` → `featurize()` → `RandomForestClassifier(class_weight='balanced')` → `evaluate_classification()` + AUPRC): scaffold split (8,629 train / 2,467 test), class balance 59%/41% (non-inhibitor/inhibitor), the most even of the three classification tasks. Confirmed clean as Week 1 EDA predicted — `load_scaffold_split()`'s dedup step ran but found nothing to remove.
+    - Results: ROC-AUC 0.879, F1 0.750, balanced accuracy 0.779, **AUPRC 0.852**
+    - The CYP3A4_Veith TDC leaderboard (tdcommons.ai/benchmark/admet_group/12cyp3a4i) reports **AUPRC, not ROC-AUC** — added `average_precision_score` specifically for a fair comparison. Top 10 ranges Chemprop (0.862) to MapLight+GNN SOTA (0.916); our baseline (0.852) sits just below the whole top 10 — similar story to Solubility (trailing the field, not close to it).
+    - F1 (0.750) is notably lower here than BBB's/hERG's F1 — likely because this is the most balanced class split modeled so far, so there's no "easy majority class" propping F1 up the way there was for the skewed datasets.
+  - **All 4 classification/first-regression baselines done. Remaining for Week 2:** Clearance (`RandomForestRegressor` + RMSE/R², mind the assay-censoring issue below) — the last of the 5 properties.
 - Decisions carried over from Week 1, to resolve during Week 2 featurization:
   - Recurring label-conflict and train/valid/test leakage findings (BBB, hERG, Clearance)
   - Clearance's assay-censoring pattern at Y=3.0/150.0
