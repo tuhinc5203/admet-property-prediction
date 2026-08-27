@@ -113,3 +113,19 @@ Distinct from salt-stripping (a chemistry-representation problem, see above), th
 **BBB's specific case, investigated rather than assumed:** the conflicting-label pairs found in BBB's scaffold-split train set were checked for stereoisomerism (E/Z or R/S) as a possible cause — ruled out, since every conflicting pair had byte-for-byte identical SMILES, including the two pairs with chiral (`@`) centers. The actual cause: the same compound entered twice under a synonym, an old development code name, or just different capitalization (`BRL53080` = `loperamide`; `Trimetrexate`/`trimetrexate`; `acetylsalicylate` = `aspirin`) — consistent with BBB_Martins being assembled from multiple literature sources, each possibly using a different permeability cutoff. This is why dedup is done on the **SMILES string**, not `Drug_ID`/name — name-based dedup would have missed all of these, since the names don't look alike.
 
 Applying this to BBB improved results (ROC-AUC 0.904 → 0.917), which is a useful data point on its own: cleaning up label noise isn't just about reporting an "honest" number, it can materially improve what the model learns, because contradictory training examples actively confuse it.
+
+### Duplicate targets for regression (`average_duplicate_targets`) — why it's not `dedupe_labels`
+`dedupe_labels()` was built for binary targets, where `nunique(Y) > 1` for a duplicated SMILES genuinely means "contradictory label, drop it." Applying that same logic to a *continuous* target is wrong: two repeat measurements of the same molecule's clearance will almost never land on the exact same float even when the true underlying value is identical, so `nunique() > 1` would be true for nearly every duplicate — checked directly on Clearance's scaffold split, every one of its 136 duplicate-SMILES groups in train (16% of train) had a different `Y` between copies, including gaps as large as 38 vs. 150 for the same molecule. Using `dedupe_labels()` here would have silently discarded 16% of training data as if it were bad data, when it's actually just measurement noise (and, given some of the largest gaps line up with the `Y=3.0`/`Y=150.0` censoring boundaries noted in Week 1 EDA, likely two assay runs where one hit a boundary and one didn't).
+
+`average_duplicate_targets(df, smiles_col='Drug', y_col='Y')` is the regression-appropriate version: group by SMILES, average `Y` across repeats (treating them as noisy readings of one true value), keep the first value for every other column. `load_scaffold_split()` now takes a `dedup_fn` parameter so the same loader serves both cases — `dedupe_labels` (default, for classification) or `average_duplicate_targets` (passed explicitly for regression targets with real duplicates, i.e. Clearance).
+
+Note this doesn't touch the separate assay-censoring issue (values pinned at the `Y=3.0`/`150.0` boundaries) — that's a different, still-unaddressed limitation flagged in Week 1 EDA and carried forward, not something averaging duplicates fixes.
+
+### Choosing the right leaderboard metric per dataset
+Worth checking explicitly for every property, not assumed: TDC uses a different metric per dataset depending on what best suits the target's distribution, and it isn't always the "obvious" one.
+- Solubility → MAE (not RMSE/R²)
+- BBB, hERG → ROC-AUC
+- CYP3A4 → **AUPRC** (not ROC-AUC — checked directly on the leaderboard page, easy to assume ROC-AUC by analogy with BBB/hERG and get it wrong)
+- Clearance → **Spearman correlation** (not R²/RMSE — rank-order agreement, which matters especially here since assay censoring distorts *exact* values at the extremes but rank order among non-censored molecules is still meaningful)
+
+Each baseline's evaluation cell adds whichever extra metric matches its leaderboard, specifically so the comparison is apples-to-apples rather than eyeballing across mismatched metrics.
