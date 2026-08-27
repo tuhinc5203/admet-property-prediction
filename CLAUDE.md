@@ -64,17 +64,21 @@ structure, using RDKit + PyTDC + scikit-learn.
 
 ## Next steps
 
-- **Week 2 — featurization + baseline models** (per the project plan):
-  - Generate Morgan fingerprints (RDKit) per molecule as the primary ML representation, plus a handful of interpretable Lipinski-style descriptors (MW, LogP, HBD/HBA, rotatable bonds) — `largest_fragment()` and `compute_descriptors()` from `Data_EDA.ipynb` are reusable starting points here
-  - Use TDC's provided scaffold split (not random) for train/test — already available as `*_split['train']`/`['test']` for all 5 datasets
-  - Train a baseline random forest (scikit-learn) per property
-  - Evaluate: ROC-AUC for classification (BBB, hERG, CYP3A4), RMSE/R² for regression (Solubility, Clearance); compare against the public TDC leaderboard for context
-  - Deliverable: a working baseline model per property with recorded metrics, committed to GitHub
+- **Week 2 — featurization + baseline models — IN PROGRESS** (`Featurization_Baseline.ipynb`, per the project plan):
+  - Reusable `largest_fragment()`, `compute_morgan_fp()` (2048-bit Morgan fingerprint, radius 2), and `featurize()` (fingerprint + MolWt/MolLogP/HBD/HBA/rotatable-bonds, combined into one 2053-column matrix) written and working.
+  - **Solubility done — first property through the full pipeline:** TDC scaffold split (6,987 train / 1,997 test), baseline `RandomForestRegressor(n_estimators=200)`, no tuning.
+    - Results: RMSE 1.286, MAE 0.926, R² 0.686
+    - Compared against the live TDC leaderboard (tdcommons.ai/benchmark/admet_group/06aqsol) which reports MAE: top entries range ~0.74 (MiniMol) to ~0.83 (Basic ML), mostly GNN-based (Chemprop, AttentiveFP). Our baseline (MAE 0.926) is worse but in the same ballpark, not wildly off — expected for an untuned RF vs. tuned/GNN methods on a single split (leaderboard averages 5 seeded splits).
+  - **Remaining for Week 2:** run the same `featurize()` → scaffold split → baseline model pattern for BBB, hERG, CYP3A4 (`RandomForestClassifier` + ROC-AUC) and Clearance (`RandomForestRegressor` + RMSE/R², mind the assay-censoring issue below).
 - Decisions carried over from Week 1, to resolve during Week 2 featurization:
   - Recurring label-conflict and train/valid/test leakage findings (BBB, hERG, Clearance)
   - Clearance's assay-censoring pattern at Y=3.0/150.0
   - Clearance's especially heavy duplication/leakage (see Issues encountered)
-  - Apply `largest_fragment()` salt stripping before featurization too, not just EDA descriptor plots — same reasoning as Week 1
+  - Apply `largest_fragment()` salt stripping before featurization too, not just EDA descriptor plots — same reasoning as Week 1 (done, built into `featurize()`)
+
+## Deferred / optional ideas
+
+- **GNN comparison for Solubility (optional, post-panel):** classical ML (RF/GBM on fingerprints) is the deliberate choice for the core project — easier to fully explain in an interview than a GNN, per the project plan's own reasoning. But since most of the TDC leaderboard's top Solubility entries are GNN-based (Chemprop, AttentiveFP, MiniMol), once the classical panel across all 5 properties is done, revisit adding a single GNN (e.g. Chemprop) on Solubility as a benchmarked comparison point — good for personal learning and shows range without making the whole project ride on a model that's harder to defend under interview questioning. Not required for the core deliverable.
 
 ## Issues encountered
 
