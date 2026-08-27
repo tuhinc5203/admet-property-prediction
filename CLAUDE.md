@@ -65,7 +65,7 @@ structure, using RDKit + PyTDC + scikit-learn.
 ## Next steps
 
 - **Week 2 — featurization + baseline models — IN PROGRESS** (`Featurization_Baseline.ipynb`, per the project plan):
-  - Reusable `largest_fragment()`, `compute_morgan_fp()` (2048-bit Morgan fingerprint, radius 2), and `featurize()` (fingerprint + MolWt/MolLogP/HBD/HBA/rotatable-bonds, combined into one 2053-column matrix) written and working.
+  - Reusable `largest_fragment()`, `compute_morgan_fp()` (2048-bit Morgan fingerprint, radius 2), `featurize()` (fingerprint + MolWt/MolLogP/HBD/HBA/rotatable-bonds, combined into one 2053-column matrix), `dedupe_labels()`, `load_scaffold_split()` (scaffold split + dedupe in one call), `evaluate_regression()`, and `evaluate_classification()` all written and working — matches the project plan's Week 2 tip to write the split/eval boilerplate as reusable functions rather than one-off code per property. (First pass at Solubility/BBB used hand-written one-off load/eval cells; refactored onto these functions afterward, verified identical results before/after.)
   - **Solubility done — first property through the full pipeline:** TDC scaffold split (6,987 train / 1,997 test), baseline `RandomForestRegressor(n_estimators=200)`, no tuning.
     - Results: RMSE 1.286, MAE 0.926, R² 0.686
     - Compared against the live TDC leaderboard (tdcommons.ai/benchmark/admet_group/06aqsol) which reports MAE: top entries range ~0.74 (MiniMol) to ~0.83 (Basic ML), mostly GNN-based (Chemprop, AttentiveFP). Our baseline (MAE 0.926) is worse but in the same ballpark, not wildly off — expected for an untuned RF vs. tuned/GNN methods on a single split (leaderboard averages 5 seeded splits).
