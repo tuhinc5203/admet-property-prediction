@@ -129,3 +129,19 @@ Worth checking explicitly for every property, not assumed: TDC uses a different 
 - Clearance → **Spearman correlation** (not R²/RMSE — rank-order agreement, which matters especially here since assay censoring distorts *exact* values at the extremes but rank order among non-censored molecules is still meaningful)
 
 Each baseline's evaluation cell adds whichever extra metric matches its leaderboard, specifically so the comparison is apples-to-apples rather than eyeballing across mismatched metrics.
+
+## Week 2 Results Summary — Baselines vs. TDC Leaderboard
+
+All 5 properties, one place, for quick review. Every baseline is a single scaffold split + an untuned `RandomForestClassifier`/`Regressor` (`n_estimators=200`, otherwise defaults) — no hyperparameter tuning yet (that's Week 3). Leaderboard scores are each dataset's actual TDC leaderboard metric (checked individually, not assumed by analogy — see above), typically averaged over 5 seeded splits, so they carry less single-split noise than our numbers do.
+
+| Property | Task | Our leaderboard-metric score | Our other metrics | Leaderboard metric | Leaderboard SOTA | Where we land |
+|---|---|---|---|---|---|---|
+| **Solubility** | Regression | MAE **0.926** | RMSE 1.286, R² 0.686 | MAE | 0.741 (MiniMol) | Below the full top 10 (0.741–0.829) — real but modest gap |
+| **BBB** | Classification | ROC-AUC **0.917** | F1 0.934, balanced acc. 0.767 | ROC-AUC | 0.916 (MapLight) | At/above SOTA on this split — best relative showing |
+| **hERG** | Classification | ROC-AUC **0.851** | F1 0.910, balanced acc. 0.739 | ROC-AUC | 0.880 (MapLight+GNN) | Mid-pack — beats half the top 10 |
+| **CYP3A4** | Classification | AUPRC **0.852** | ROC-AUC 0.879, F1 0.750, balanced acc. 0.779 | AUPRC | 0.916 (MapLight+GNN) | Below the full top 10 |
+| **Clearance** | Regression | Spearman **0.362** | RMSE 44.480, MAE 35.069, R² 0.115 | Spearman | 0.536 (CFA) | Below top 10, but this property is hard for everyone (field ranges down to 0.235) |
+
+**Clearance duplicate-handling comparison** (in-notebook, see "Comparison" cells): `average_duplicate_targets` (Spearman 0.362, 713 train molecules) vs. `dedupe_labels` drop-conflicts (Spearman 0.334, 577 train molecules) — averaging wins on the metric that matters and keeps ~16% more distinct molecules, confirming the choice empirically rather than just by argument.
+
+**Overall pattern:** BBB and hERG (the two datasets with the cleanest, most separable descriptor signal back in Week 1 EDA — TPSA and MolLogP respectively) are also where the baseline lands closest to the leaderboard. Solubility, CYP3A4, and Clearance all trail their leaderboards by a more real margin — consistent with most of those leaderboards being dominated by GNN/foundation-model entries (Chemprop, AttentiveFP, MiniMol, MapLight+GNN) rather than classical ML, and with our single-split, untuned baseline being compared against 5-seed-averaged, tuned entries. Closing (some of) that gap is exactly what Week 3's hyperparameter tuning and gradient boosting comparison is for.

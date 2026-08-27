@@ -52,20 +52,8 @@ structure, using RDKit + PyTDC + scikit-learn.
   - hERG's Clofilium phosphate: MolWt 1112→339, MolLogP 16.6→6.5 — now correctly represents the single active cation, fully resolved.
   - Solubility's inorganic salts: MolWt/MolLogP shrank substantially (e.g. borate salt 588→59 MolWt, -40.9→-3.9 MolLogP; tungsten salt 2968→248 MolWt, -29.1→-2.6 MolLogP) — no longer absurd, though still not chemically "typical" since the largest fragment is still a small inorganic ion, not an organic drug. Expected and acceptable — see below.
   - **Week 1 deliverable met:** one combined notebook (`Data_EDA.ipynb`) with all 5 datasets loaded, cleaned, and explored (counts, missing data, class balance/distribution, duplicate/leakage checks, descriptor-vs-target plots, salt-stripping cleanup), each with a "why it matters" pointer to `NOTES.md`. Committed and pushed throughout.
-
-## Outliers to investigate — resolved / remaining
-
-- ✅ **Solubility & hERG multi-fragment salt inflation — resolved by largest-fragment stripping** (see above). Remaining residual weirdness in Solubility's inorganic salts (still unusual LogP values post-stripping) is inherent to those compounds not being organic molecules at all — not a bug, just a property of a few non-drug-like entries in the dataset. No further action planned; flagged as acceptable data noise.
-- ⏸️ **CYP3A4 — genuinely large real molecules, not salts, left as-is (decided, not a bug):**
-  - PubChem CID 4469 (MolLogP -24.4, MolWt 1505): a large polysulfonated anionic dye-like compound.
-  - PubChem CID 6604947 (MolWt 1736, MolLogP 10.8): an avermectin-like macrolide natural product.
-  - PubChem CID 434172 (MolWt 1298, MolLogP 20.75): a calixarene-type macrocycle.
-  - Decision: keep as-is, don't filter. These are legitimate, real molecules — not data artifacts — just far outside typical oral drug-like size range. Documented here for awareness; revisit only if they turn out to cause modeling problems (e.g. as high-leverage points in a linear model).
-
-## Next steps
-
-- **Week 2 — featurization + baseline models — IN PROGRESS** (`Featurization_Baseline.ipynb`, per the project plan):
-  - Reusable `largest_fragment()`, `compute_morgan_fp()` (2048-bit Morgan fingerprint, radius 2), `featurize()` (fingerprint + MolWt/MolLogP/HBD/HBA/rotatable-bonds, combined into one 2053-column matrix), `dedupe_labels()`, `load_scaffold_split()` (scaffold split + dedupe in one call), `evaluate_regression()`, and `evaluate_classification()` all written and working — matches the project plan's Week 2 tip to write the split/eval boilerplate as reusable functions rather than one-off code per property. (First pass at Solubility/BBB used hand-written one-off load/eval cells; refactored onto these functions afterward, verified identical results before/after.)
+- **Week 2 — featurization + baseline models — COMPLETE, PENDING USER REVIEW** (`Featurization_Baseline.ipynb`, per the project plan). Committed and pushed, but flagged for a full fresh-eyes review pass before treating it as final — don't start Week 3 until that review happens.
+  - Reusable `largest_fragment()`, `compute_morgan_fp()` (2048-bit Morgan fingerprint, radius 2), `featurize()` (fingerprint + MolWt/MolLogP/HBD/HBA/rotatable-bonds, combined into one 2053-column matrix), `dedupe_labels()`, `average_duplicate_targets()`, `load_scaffold_split()` (scaffold split + a swappable `dedup_fn`, defaulting to `dedupe_labels`), `evaluate_regression()`, and `evaluate_classification()` all written and working — matches the project plan's Week 2 tip to write the split/eval boilerplate as reusable functions rather than one-off code per property. (First pass at Solubility/BBB used hand-written one-off load/eval cells; refactored onto these functions afterward, verified identical results before/after.)
   - **Solubility done — first property through the full pipeline:** TDC scaffold split (6,987 train / 1,997 test), baseline `RandomForestRegressor(n_estimators=200)`, no tuning.
     - Results: RMSE 1.286, MAE 0.926, R² 0.686
     - Compared against the live TDC leaderboard (tdcommons.ai/benchmark/admet_group/06aqsol) which reports MAE: top entries range ~0.74 (MiniMol) to ~0.83 (Basic ML), mostly GNN-based (Chemprop, AttentiveFP). Our baseline (MAE 0.926) is worse but in the same ballpark, not wildly off — expected for an untuned RF vs. tuned/GNN methods on a single split (leaderboard averages 5 seeded splits).
@@ -75,7 +63,7 @@ structure, using RDKit + PyTDC + scikit-learn.
     - Results after cleaning: ROC-AUC 0.917, F1 0.934, balanced accuracy 0.767 (up slightly from 0.904/0.931/0.762 pre-cleaning — removing conflicting-label noise helped, not just made results "more honest")
     - **Root cause of the conflicting labels, checked directly (not E/Z or R/S stereoisomers — verified no molecule pair had differing SMILES, so they're structurally identical, not different isomers):** the same compound entered twice under different names — a synonym, an old code name, or just different capitalization (e.g. `BRL53080`/`loperamide`, `Trimetrexate`/`trimetrexate`, `acetylsalicylate`/`aspirin`) — each copy apparently sourced from a different literature study with its own permeability cutoff/assay, consistent with BBB_Martins being a multi-source literature compilation. This is why dedup was done on the SMILES string, not `Drug_ID`/name — name-based dedup would have missed all of these.
     - Compared against the live TDC leaderboard (tdcommons.ai/benchmark/admet_group/01bbb): SOTA (MapLight) is 0.916 AUROC, 12/25 entries above 0.9 — our cleaned baseline (0.917) is now at/above that SOTA number on this single split.
-  - **Process note:** should have run this duplicate/leakage check *before* first training each model, not after — it was already flagged as a carried-over Week 1 decision. Doing it reactively after a follow-up question worked out fine here, but going forward, check each dataset's carried-over Week 1 issues (see list below) before training on it, not after.
+  - **Process note:** should have run this duplicate/leakage check *before* first training each model, not after — it was already flagged as a carried-over Week 1 decision. Doing it reactively after a follow-up question worked out fine here, but going forward, check each dataset's carried-over Week 1 issues before training on it, not after.
   - **hERG blockade done — first property run through the fully refactored pipeline** (`load_scaffold_split(Tox, 'hERG')` → `featurize()` → `RandomForestClassifier(class_weight='balanced')` → `evaluate_classification()`, 5 short cells total): scaffold split (456 train / 125 test after dedup), class balance 68%/32% (blockers/non).
     - Results: ROC-AUC 0.851, F1 0.910, balanced accuracy 0.739
     - Compared against the live TDC leaderboard (tdcommons.ai/benchmark/admet_group/20herg): SOTA is MapLight+GNN at 0.880; our baseline (0.851) beats half the top 10 (MiniMol 0.846, RDKit2D+MLP 0.841, Chemprop-RDKit 0.840, ADMETrix 0.836, AttentiveFP 0.825) — the strongest relative-to-leaderboard showing of the three properties done so far.
@@ -88,12 +76,26 @@ structure, using RDKit + PyTDC + scikit-learn.
     - Results: RMSE 44.480, MAE 35.069, R² 0.115, **Spearman 0.362**
     - R² of 0.115 looks alarming in isolation, but the TDC leaderboard for this dataset (tdcommons.ai/benchmark/admet_group/17clhepa) reports **Spearman correlation, not R²** — and even SOTA (CFA) only reaches 0.536, with most of the top 10 clustered around 0.43–0.47 and the bottom of the field down to 0.235. Our Spearman of 0.362 sits below the leaderboard's top 10 but is a genuinely meaningful result given how hard this property is for everyone, not just us.
     - Assay-censoring issue (16%/11% of rows pinned at Y=3.0/150.0, flagged in Week 1 EDA) was **not** fixed here, by design — a plain regressor is scored as if those pinned values were exact, a real known limitation carried forward rather than silently patched.
-  - **Week 2 core deliverable met: all 5 properties have a working baseline model with recorded metrics, each checked against its actual TDC leaderboard metric** (Solubility: MAE, BBB/hERG: ROC-AUC, CYP3A4: AUPRC, Clearance: Spearman).
-- Decisions carried over from Week 1, to resolve during Week 2 featurization:
-  - Recurring label-conflict and train/valid/test leakage findings (BBB, hERG, Clearance)
-  - Clearance's assay-censoring pattern at Y=3.0/150.0
-  - Clearance's especially heavy duplication/leakage (see Issues encountered)
-  - Apply `largest_fragment()` salt stripping before featurization too, not just EDA descriptor plots — same reasoning as Week 1 (done, built into `featurize()`)
+    - In-notebook comparison: re-ran Clearance with `dedupe_labels` instead of `average_duplicate_targets` — Spearman 0.334 (vs. 0.362) on 577 train molecules (vs. 713) — averaging wins on the metric that matters and keeps more molecules, confirming the choice empirically.
+  - **Week 2 core deliverable met: all 5 properties have a working baseline model with recorded metrics, each checked against its actual TDC leaderboard metric** (Solubility: MAE, BBB/hERG: ROC-AUC, CYP3A4: AUPRC, Clearance: Spearman). Full results table with leaderboard comparison consolidated in `NOTES.md`'s "Week 2 Results Summary" section for easy review.
+  - Zero train/valid/test leakage confirmed directly on all 5 datasets' scaffold splits (not just assumed to generalize from Solubility/BBB) — scaffold splitting eliminates the Week 1-flagged leakage issue across the board.
+
+## Outliers to investigate — resolved / remaining
+
+- ✅ **Solubility & hERG multi-fragment salt inflation — resolved by largest-fragment stripping** (see above). Remaining residual weirdness in Solubility's inorganic salts (still unusual LogP values post-stripping) is inherent to those compounds not being organic molecules at all — not a bug, just a property of a few non-drug-like entries in the dataset. No further action planned; flagged as acceptable data noise.
+- ⏸️ **CYP3A4 — genuinely large real molecules, not salts, left as-is (decided, not a bug):**
+  - PubChem CID 4469 (MolLogP -24.4, MolWt 1505): a large polysulfonated anionic dye-like compound.
+  - PubChem CID 6604947 (MolWt 1736, MolLogP 10.8): an avermectin-like macrolide natural product.
+  - PubChem CID 434172 (MolWt 1298, MolLogP 20.75): a calixarene-type macrocycle.
+  - Decision: keep as-is, don't filter. These are legitimate, real molecules — not data artifacts — just far outside typical oral drug-like size range. Documented here for awareness; revisit only if they turn out to cause modeling problems (e.g. as high-leverage points in a linear model).
+
+## Next steps
+
+- **Week 2 needs your own fresh-eyes review before Week 3 starts** — you asked to look over everything (the notebook, `CLAUDE.md`'s Week 2 log, and `NOTES.md`'s "Featurization & Baseline Modeling" section + new "Week 2 Results Summary" table) on a fresh day rather than review it piecemeal as it was built. Don't start Week 3 work until that review happens.
+- Once reviewed, **Week 3 — improve models + compare approaches** (per the project plan): gradient boosting (XGBoost/LightGBM) alongside the RF baselines, hyperparameter tuning via CV on train only, a feature-importance analysis for at least one property (TPSA's absence from the current descriptor set is worth reconsidering here — see NOTES.md), and documenting failure modes.
+- Two things intentionally left open from Week 2, likely relevant to Week 3:
+  - Clearance's assay-censoring pattern at Y=3.0/150.0 — still unaddressed (a plain regressor treats those pinned boundary values as exact)
+  - TPSA isn't in the current 5-descriptor feature set (Week 2 used MW/LogP/HBD/HBA/rotatable-bonds per the plan's literal list) despite being the strongest single class-separator found in Week 1 EDA
 
 ## Deferred / optional ideas
 
