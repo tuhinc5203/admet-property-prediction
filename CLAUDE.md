@@ -69,7 +69,10 @@ structure, using RDKit + PyTDC + scikit-learn.
   - **Solubility done — first property through the full pipeline:** TDC scaffold split (6,987 train / 1,997 test), baseline `RandomForestRegressor(n_estimators=200)`, no tuning.
     - Results: RMSE 1.286, MAE 0.926, R² 0.686
     - Compared against the live TDC leaderboard (tdcommons.ai/benchmark/admet_group/06aqsol) which reports MAE: top entries range ~0.74 (MiniMol) to ~0.83 (Basic ML), mostly GNN-based (Chemprop, AttentiveFP). Our baseline (MAE 0.926) is worse but in the same ballpark, not wildly off — expected for an untuned RF vs. tuned/GNN methods on a single split (leaderboard averages 5 seeded splits).
-  - **Remaining for Week 2:** run the same `featurize()` → scaffold split → baseline model pattern for BBB, hERG, CYP3A4 (`RandomForestClassifier` + ROC-AUC) and Clearance (`RandomForestRegressor` + RMSE/R², mind the assay-censoring issue below).
+  - **BBB permeability done:** TDC scaffold split (1,421 train / 406 test), baseline `RandomForestClassifier(n_estimators=200, class_weight='balanced')` (balanced to counter the 77%/23% class skew found in Week 1 EDA).
+    - Results: ROC-AUC 0.904, F1 0.931, balanced accuracy 0.762
+    - Compared against the live TDC leaderboard (tdcommons.ai/benchmark/admet_group/01bbb): SOTA (MapLight) is 0.916 AUROC, and 12/25 leaderboard entries score above 0.9 — our untuned baseline (0.904) lands inside that competitive band, notably closer to leaderboard performance than Solubility was.
+  - **Remaining for Week 2:** run the same `featurize()` → scaffold split → baseline model pattern for hERG, CYP3A4 (`RandomForestClassifier` + ROC-AUC) and Clearance (`RandomForestRegressor` + RMSE/R², mind the assay-censoring issue below).
 - Decisions carried over from Week 1, to resolve during Week 2 featurization:
   - Recurring label-conflict and train/valid/test leakage findings (BBB, hERG, Clearance)
   - Clearance's assay-censoring pattern at Y=3.0/150.0
