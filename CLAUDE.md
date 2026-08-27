@@ -52,7 +52,7 @@ structure, using RDKit + PyTDC + scikit-learn.
   - hERG's Clofilium phosphate: MolWt 1112→339, MolLogP 16.6→6.5 — now correctly represents the single active cation, fully resolved.
   - Solubility's inorganic salts: MolWt/MolLogP shrank substantially (e.g. borate salt 588→59 MolWt, -40.9→-3.9 MolLogP; tungsten salt 2968→248 MolWt, -29.1→-2.6 MolLogP) — no longer absurd, though still not chemically "typical" since the largest fragment is still a small inorganic ion, not an organic drug. Expected and acceptable — see below.
   - **Week 1 deliverable met:** one combined notebook (`Data_EDA.ipynb`) with all 5 datasets loaded, cleaned, and explored (counts, missing data, class balance/distribution, duplicate/leakage checks, descriptor-vs-target plots, salt-stripping cleanup), each with a "why it matters" pointer to `NOTES.md`. Committed and pushed throughout.
-- **Week 2 — featurization + baseline models — COMPLETE, PENDING USER REVIEW** (`Featurization_Baseline.ipynb`, per the project plan). Committed and pushed, but flagged for a full fresh-eyes review pass before treating it as final — don't start Week 3 until that review happens.
+- **Week 2 — featurization + baseline models — COMPLETE** (`Featurization_Baseline.ipynb`, per the project plan). Reviewed and approved by the user on 2026-08-27 — sealed off, no longer pending.
   - Reusable `largest_fragment()`, `compute_morgan_fp()` (2048-bit Morgan fingerprint, radius 2), `featurize()` (fingerprint + MolWt/MolLogP/HBD/HBA/rotatable-bonds, combined into one 2053-column matrix), `dedupe_labels()`, `average_duplicate_targets()`, `load_scaffold_split()` (scaffold split + a swappable `dedup_fn`, defaulting to `dedupe_labels`), `evaluate_regression()`, and `evaluate_classification()` all written and working — matches the project plan's Week 2 tip to write the split/eval boilerplate as reusable functions rather than one-off code per property. (First pass at Solubility/BBB used hand-written one-off load/eval cells; refactored onto these functions afterward, verified identical results before/after.)
   - **Solubility done — first property through the full pipeline:** TDC scaffold split (6,987 train / 1,997 test), baseline `RandomForestRegressor(n_estimators=200)`, no tuning.
     - Results: RMSE 1.286, MAE 0.926, R² 0.686
@@ -91,11 +91,10 @@ structure, using RDKit + PyTDC + scikit-learn.
 
 ## Next steps
 
-- **Week 2 needs your own fresh-eyes review before Week 3 starts** — you asked to look over everything (the notebook, `CLAUDE.md`'s Week 2 log, and `NOTES.md`'s "Featurization & Baseline Modeling" section + new "Week 2 Results Summary" table) on a fresh day rather than review it piecemeal as it was built. Don't start Week 3 work until that review happens.
-- Once reviewed, **Week 3 — improve models + compare approaches** (per the project plan): gradient boosting (XGBoost/LightGBM) alongside the RF baselines, hyperparameter tuning via CV on train only, a feature-importance analysis for at least one property (TPSA's absence from the current descriptor set is worth reconsidering here — see NOTES.md), and documenting failure modes.
-- Two things intentionally left open from Week 2, likely relevant to Week 3:
-  - Clearance's assay-censoring pattern at Y=3.0/150.0 — still unaddressed (a plain regressor treats those pinned boundary values as exact)
-  - TPSA isn't in the current 5-descriptor feature set (Week 2 used MW/LogP/HBD/HBA/rotatable-bonds per the plan's literal list) despite being the strongest single class-separator found in Week 1 EDA
+- **Week 3 — improve models + compare approaches** (per the project plan) — not started yet, begin next session:
+  - **User's chosen first improvement: add TPSA back into the feature set.** Week 2's `featurize()` deliberately used the plan's literal descriptor list (MW, LogP, HBD/HBA, rotatable bonds) and left TPSA out, even though TPSA was the single strongest signal found in all of Week 1 EDA (near-clean class separation for BBB: non-permeable ~110, permeable ~40-50). The user reviewed Week 2 in full on 2026-08-27 and specifically wants to try adding TPSA as a 6th descriptor and see whether/where it improves the baselines — likely biggest expected impact on BBB given that Week 1 finding, but worth testing across all 5 properties since Week 1 also found TPSA behaves differently per property (e.g. essentially no separation for CYP3A4).
+  - Also per the plan (not yet scoped/started): gradient boosting (XGBoost/LightGBM) alongside the RF baselines, hyperparameter tuning via CV on train only, a feature-importance analysis for at least one property, and documenting failure modes.
+  - Clearance's assay-censoring pattern at Y=3.0/150.0 is still unaddressed from Week 2 (a plain regressor treats those pinned boundary values as exact) — worth revisiting here too if there's time.
 
 ## Deferred / optional ideas
 
