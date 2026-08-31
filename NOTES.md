@@ -142,6 +142,45 @@ All 5 properties, one place, for quick review. Every baseline is a single scaffo
 | **CYP3A4** | Classification | AUPRC **0.852** | ROC-AUC 0.879, F1 0.750, balanced acc. 0.779 | AUPRC | 0.916 (MapLight+GNN) | Below the full top 10 |
 | **Clearance** | Regression | Spearman **0.362** | RMSE 44.480, MAE 35.069, R² 0.115 | Spearman | 0.536 (CFA) | Below top 10, but this property is hard for everyone (field ranges down to 0.235) |
 
+## Week 3 — Model Improvement
+
+### Experiment 1: adding TPSA as a 6th descriptor
+Week 2's `featurize()` deliberately left TPSA out (the plan's literal Week 2 list was MW/LogP/HBD/HBA/rotatable bonds), despite TPSA being the single cleanest signal found anywhere in Week 1 EDA (near-clean BBB class separation). `Model_Improvement.ipynb` copies Week 2's reusable functions unchanged and modifies only `featurize()` to add TPSA, keeping `Featurization_Baseline.ipynb` sealed as a stable "before" snapshot to compare against (`WEEK2_BASELINE` dict + `compare_to_week2()` in the new notebook).
+
+**Headline result — the hypothesis was wrong in an interesting way.** BBB, the property expected to benefit most, barely moved and its headline metric (ROC-AUC) actually dipped slightly (0.917 → 0.910); Clearance, which had no strong univariate EDA signal for TPSA, got the largest improvement (Spearman 0.362 → 0.391). CYP3A4 was flat, as its Week 1 EDA (no visible separation) predicted. hERG's other metrics dropped, most notably balanced accuracy (0.739 → 0.692).
+
+| Property | Metric | Week 2 → Week 3 (+TPSA) |
+|---|---|---|
+| Solubility | RMSE / MAE / R² | 1.286→1.280 / 0.926→0.920 / 0.686→0.689 (small improvement) |
+| BBB | ROC-AUC | 0.917 → 0.910 (slightly worse) |
+| BBB | F1 / balanced acc. | 0.934→0.936 / 0.767→0.779 (slightly better) |
+| hERG | ROC-AUC / balanced acc. | 0.851→0.844 / 0.739→0.692 (worse — investigated below) |
+| CYP3A4 | ROC-AUC / AUPRC | 0.879→0.878 / 0.852→0.851 (flat) |
+| Clearance | Spearman | 0.362 → 0.391 (best improvement of the 5) |
+
+### Investigating the surprise: TPSA's feature-importance rank, and a real RF gotcha
+The instinct was "TPSA must be redundant with the fingerprint bits, since a fingerprint can implicitly encode polar-group patterns." Checked directly via `rf.feature_importances_` rather than left as a guess — and the data contradicts that instinct:
+
+| Property | TPSA's importance rank (of 2054 total features) |
+|---|---|
+| Solubility | 3rd |
+| BBB | 2nd |
+| hERG | 3rd |
+| CYP3A4 | 5th |
+| Clearance | **1st** |
+
+TPSA isn't redundant at all — it's near the top of every single model, including CYP3A4 where Week 1 EDA found no visible univariate separation. So why didn't "very important" reliably translate into "measurably better leaderboard score"?
+
+**The actual explanation is a documented statistical artifact, not a coincidence:** scikit-learn's default Random Forest feature importance (mean decrease in impurity, "MDI") is known to be systematically biased toward *continuous* features over *binary* ones. A continuous variable like TPSA offers many possible split thresholds at every tree node; a fixed 0/1 fingerprint bit offers exactly one. More candidate splits means a continuous feature gets selected more often almost mechanically, inflating its MDI importance score independent of how much it actually improves predictions. With 1 continuous TPSA column competing against 2048 binary bits, TPSA was always going to look artificially dominant by this specific metric — "importance rank" and "how much the test score moved" are measuring genuinely different things here, and conflating them would have been a real mistake. (Permutation importance, which measures the actual drop in test performance when a feature is shuffled, is the standard fix for this bias — worth using instead for any feature-importance conclusions the project plan asks for later in Week 3, rather than trusting MDI rank at face value.)
+
+### Investigating hERG's apparent regression: real effect or small-test-set noise?
+hERG's test set is only 125 molecules — small enough that a handful of flipped predictions can swing balanced accuracy noticeably. Tested directly rather than assumed: retrained an identical model with the TPSA column dropped from the *already-computed* feature matrix (isolates the effect of that one column, with no other source of variation — same data, same split, same random seed), then compared per-molecule predictions with vs. without TPSA.
+
+**Result: only 3 of 125 test predictions flipped at all**, and every one of them was already a coin-flip call before TPSA was added — predicted probabilities of 0.492, 0.480, and 0.493 (right at the 0.5 decision boundary), nudged by TPSA to 0.505, 0.540, and 0.547. Three borderline flips is entirely sufficient to move balanced accuracy by several points on a 125-molecule test set. **Conclusion: hERG's apparent regression is a small-sample threshold-sensitivity artifact, not TPSA damaging the model.** A larger test set would very likely show this effect shrink toward noise-level.
+
+### Overall takeaway
+TPSA carries real, high-ranking signal in every model here — the univariate EDA finding wasn't wrong. But a single added feature's effect on an ensemble model's *aggregate* test score depends on complex interactions with the thousands of features already present, and can be small, mixed, or dataset-specific even when that feature is individually important. The one clear, trustworthy win is Clearance (Spearman +0.029, TPSA ranked #1 there) — everything else is a wash once investigated properly, not a clean "TPSA helped" or "TPSA hurt" story.
+
 **Clearance duplicate-handling comparison** (in-notebook, see "Comparison" cells): `average_duplicate_targets` (Spearman 0.362, 713 train molecules) vs. `dedupe_labels` drop-conflicts (Spearman 0.334, 577 train molecules) — averaging wins on the metric that matters and keeps ~16% more distinct molecules, confirming the choice empirically rather than just by argument.
 
 **Overall pattern:** BBB and hERG (the two datasets with the cleanest, most separable descriptor signal back in Week 1 EDA — TPSA and MolLogP respectively) are also where the baseline lands closest to the leaderboard. Solubility, CYP3A4, and Clearance all trail their leaderboards by a more real margin — consistent with most of those leaderboards being dominated by GNN/foundation-model entries (Chemprop, AttentiveFP, MiniMol, MapLight+GNN) rather than classical ML, and with our single-split, untuned baseline being compared against 5-seed-averaged, tuned entries. Closing (some of) that gap is exactly what Week 3's hyperparameter tuning and gradient boosting comparison is for.
