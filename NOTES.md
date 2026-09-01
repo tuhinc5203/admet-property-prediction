@@ -142,6 +142,10 @@ All 5 properties, one place, for quick review. Every baseline is a single scaffo
 | **CYP3A4** | Classification | AUPRC **0.852** | ROC-AUC 0.879, F1 0.750, balanced acc. 0.779 | AUPRC | 0.916 (MapLight+GNN) | Below the full top 10 |
 | **Clearance** | Regression | Spearman **0.362** | RMSE 44.480, MAE 35.069, R² 0.115 | Spearman | 0.536 (CFA) | Below top 10, but this property is hard for everyone (field ranges down to 0.235) |
 
+**Clearance duplicate-handling comparison** (in-notebook, see "Comparison" cells): `average_duplicate_targets` (Spearman 0.362, 713 train molecules) vs. `dedupe_labels` drop-conflicts (Spearman 0.334, 577 train molecules) — averaging wins on the metric that matters and keeps ~16% more distinct molecules, confirming the choice empirically rather than just by argument.
+
+**Overall pattern:** BBB and hERG (the two datasets with the cleanest, most separable descriptor signal back in Week 1 EDA — TPSA and MolLogP respectively) are also where the baseline lands closest to the leaderboard. Solubility, CYP3A4, and Clearance all trail their leaderboards by a more real margin — consistent with most of those leaderboards being dominated by GNN/foundation-model entries (Chemprop, AttentiveFP, MiniMol, MapLight+GNN) rather than classical ML, and with our single-split, untuned baseline being compared against 5-seed-averaged, tuned entries. Closing (some of) that gap is exactly what Week 3's hyperparameter tuning and gradient boosting comparison is for.
+
 ## Week 3 — Model Improvement
 
 ### Experiment 1: adding TPSA as a 6th descriptor
@@ -178,9 +182,29 @@ hERG's test set is only 125 molecules — small enough that a handful of flipped
 
 **Result: only 3 of 125 test predictions flipped at all**, and every one of them was already a coin-flip call before TPSA was added — predicted probabilities of 0.492, 0.480, and 0.493 (right at the 0.5 decision boundary), nudged by TPSA to 0.505, 0.540, and 0.547. Three borderline flips is entirely sufficient to move balanced accuracy by several points on a 125-molecule test set. **Conclusion: hERG's apparent regression is a small-sample threshold-sensitivity artifact, not TPSA damaging the model.** A larger test set would very likely show this effect shrink toward noise-level.
 
-### Overall takeaway
+### Overall takeaway (TPSA experiment)
 TPSA carries real, high-ranking signal in every model here — the univariate EDA finding wasn't wrong. But a single added feature's effect on an ensemble model's *aggregate* test score depends on complex interactions with the thousands of features already present, and can be small, mixed, or dataset-specific even when that feature is individually important. The one clear, trustworthy win is Clearance (Spearman +0.029, TPSA ranked #1 there) — everything else is a wash once investigated properly, not a clean "TPSA helped" or "TPSA hurt" story.
 
-**Clearance duplicate-handling comparison** (in-notebook, see "Comparison" cells): `average_duplicate_targets` (Spearman 0.362, 713 train molecules) vs. `dedupe_labels` drop-conflicts (Spearman 0.334, 577 train molecules) — averaging wins on the metric that matters and keeps ~16% more distinct molecules, confirming the choice empirically rather than just by argument.
+### Experiment 2: XGBoost vs. Random Forest (Solubility + BBB)
+Random Forest builds trees independently and averages them; gradient boosting (XGBoost) builds trees sequentially, each one specifically targeting the residual error left by the trees before it. Tested on 2 properties rather than the full panel — a comparison to learn from, not a full re-run — reusing the exact same TPSA-augmented features already computed for Experiment 1, so only the model family changes, isolating that as its own variable. Compared against **two** references: Week 2's frozen RF-only baseline, and this notebook's own RF+TPSA result, to separate "does XGBoost help" from "is this just the TPSA effect again."
 
-**Overall pattern:** BBB and hERG (the two datasets with the cleanest, most separable descriptor signal back in Week 1 EDA — TPSA and MolLogP respectively) are also where the baseline lands closest to the leaderboard. Solubility, CYP3A4, and Clearance all trail their leaderboards by a more real margin — consistent with most of those leaderboards being dominated by GNN/foundation-model entries (Chemprop, AttentiveFP, MiniMol, MapLight+GNN) rather than classical ML, and with our single-split, untuned baseline being compared against 5-seed-averaged, tuned entries. Closing (some of) that gap is exactly what Week 3's hyperparameter tuning and gradient boosting comparison is for.
+Same XGBoost result throughout (one run per property) — the two "vs." columns are the same XGBoost number compared against two different starting points, not two different models:
+
+| Property | Metric | Week 2 RF (no TPSA) | Week 3 RF (+TPSA) | XGBoost (+TPSA) | Δ vs. Week 2 RF | Δ vs. Week 3 RF |
+|---|---|---|---|---|---|---|
+| Solubility | RMSE | 1.286 | 1.280 | **1.264** | −0.022 (better) | −0.016 (better) |
+| Solubility | **MAE** (leaderboard metric) | 0.926 | 0.920 | **0.932** | +0.006 (slightly worse) | +0.012 (slightly worse) |
+| Solubility | R² | 0.686 | 0.689 | **0.696** | +0.010 (better) | +0.007 (better) |
+| BBB | **ROC-AUC** (leaderboard metric) | 0.917 | 0.910 | **0.907** | −0.010 (slightly worse) | −0.003 (essentially flat) |
+| BBB | F1 | 0.934 | 0.936 | **0.921** | −0.013 (worse) | −0.015 (worse) |
+| BBB | Balanced accuracy | 0.767 | 0.779 | **0.823** | +0.056 (notably better) | +0.044 (notably better) |
+
+**Not a clean win either way — reported honestly rather than spun.** On the metric each dataset's actual TDC leaderboard uses, XGBoost is a wash-to-slightly-worse than the current RF+TPSA baseline (MAE for Solubility, ROC-AUC for BBB both moved the wrong direction by a small amount). But XGBoost clearly does something different and real: Solubility's RMSE/R² both improved (fewer large misses, even though typical-sized error per MAE ticked up slightly — suggesting XGBoost handles outlier cases better but is marginally worse on typical cases), and BBB's balanced accuracy jumped substantially (+0.044 to +0.056) despite ROC-AUC barely moving. That combination (ranking quality flat, hard-threshold accuracy much better) points to `scale_pos_weight` (XGBoost's class-imbalance handling, used here in place of sklearn's `class_weight='balanced'`) producing a better-calibrated decision boundary at the default 0.5 threshold than RF's, without actually improving the model's underlying ability to rank molecules — ROC-AUC measures ranking across every threshold, so it wouldn't reflect this kind of threshold-specific calibration difference.
+
+**Takeaway:** which model "wins" depends on which metric matters for the use case — XGBoost isn't a strict upgrade here, and reporting only one metric (e.g. leading with balanced accuracy for BBB) would have overstated the result.
+
+### Environment issue encountered and fixed: numpy 2.x breaking RDKit
+Installing XGBoost via conda pulled `numpy` up to 2.2.6 as a dependency. This RDKit build (2023.09.6) predates numpy 2.0 and is compiled against numpy's older C API — `ConvertToNumpyArray` (used inside `compute_morgan_fp`) failed with `ValueError: Expecting a Numeric array object` as soon as featurization ran again. Fixed by pinning `numpy<2` (conda resolved to 1.26.4), which restored both RDKit's fingerprint conversion and XGBoost working correctly side by side. **Verified the fix didn't silently change anything already committed:** re-ran `Featurization_Baseline.ipynb` (Week 2's sealed notebook) to stdout under the fixed environment and confirmed it reproduces its exact committed numbers (all 5 properties) unchanged. Worth remembering if a future package install pulls numpy back up to 2.x — this specific RDKit build needs numpy 1.x.
+
+### Overall pattern (both experiments)
+BBB and hERG (cleanest, most separable descriptor signal in Week 1 EDA) are also where the baseline lands closest to the leaderboard. Solubility, CYP3A4, and Clearance all trail their leaderboards by a more real margin — consistent with most of those leaderboards being dominated by GNN/foundation-model entries rather than classical ML. Neither TPSA nor XGBoost alone closed that gap in a clean, unambiguous way — both produced genuine but mixed, metric-dependent effects, which is itself a realistic and worth-reporting finding rather than a disappointment.
