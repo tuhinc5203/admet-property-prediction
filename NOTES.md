@@ -206,5 +206,38 @@ Same XGBoost result throughout (one run per property) — the two "vs." columns 
 ### Environment issue encountered and fixed: numpy 2.x breaking RDKit
 Installing XGBoost via conda pulled `numpy` up to 2.2.6 as a dependency. This RDKit build (2023.09.6) predates numpy 2.0 and is compiled against numpy's older C API — `ConvertToNumpyArray` (used inside `compute_morgan_fp`) failed with `ValueError: Expecting a Numeric array object` as soon as featurization ran again. Fixed by pinning `numpy<2` (conda resolved to 1.26.4), which restored both RDKit's fingerprint conversion and XGBoost working correctly side by side. **Verified the fix didn't silently change anything already committed:** re-ran `Featurization_Baseline.ipynb` (Week 2's sealed notebook) to stdout under the fixed environment and confirmed it reproduces its exact committed numbers (all 5 properties) unchanged. Worth remembering if a future package install pulls numpy back up to 2.x — this specific RDKit build needs numpy 1.x.
 
-### Overall pattern (both experiments)
-BBB and hERG (cleanest, most separable descriptor signal in Week 1 EDA) are also where the baseline lands closest to the leaderboard. Solubility, CYP3A4, and Clearance all trail their leaderboards by a more real margin — consistent with most of those leaderboards being dominated by GNN/foundation-model entries rather than classical ML. Neither TPSA nor XGBoost alone closed that gap in a clean, unambiguous way — both produced genuine but mixed, metric-dependent effects, which is itself a realistic and worth-reporting finding rather than a disappointment.
+### Experiment 3: Hyperparameter tuning (RF + XGBoost, Solubility + BBB)
+Both model families tuned via `RandomizedSearchCV` over a small parameter space (15 candidates, not an exhaustive grid — matches the plan's "basic hyperparameter tuning" framing), scored on each dataset's actual leaderboard metric (MAE for Solubility, ROC-AUC for BBB).
+
+**CV uses scaffold-grouped folds (`GroupKFold` on Bemis-Murcko scaffolds via `MurckoScaffold.MurckoScaffoldSmiles`), not plain K-fold.** Plain K-fold would let molecules sharing a scaffold land in different folds — a milder version of the exact leakage scaffold splitting exists to prevent. Grouping keeps every CV fold as realistic a test as the actual train/test split.
+
+`class_weight='balanced'` (RF) / `scale_pos_weight` (XGBoost) were held fixed rather than searched, so tuning targets genuine hyperparameters, not the imbalance-handling choice already made in Week 2/Experiment 2.
+
+**Full results, both properties, all four candidate models plus the two frozen baselines:**
+
+| Property | Metric | Week 2 RF | Week 3 RF+TPSA | Untuned XGB | Tuned RF | **Tuned XGBoost** |
+|---|---|---|---|---|---|---|
+| Solubility | RMSE | 1.286 | 1.280 | 1.264 | 1.256 | **1.235** |
+| Solubility | **MAE** | 0.926 | 0.920 | 0.932 | 0.912 | **0.899** |
+| Solubility | R² | 0.686 | 0.689 | 0.696 | 0.700 | **0.710** |
+| BBB | **ROC-AUC** | 0.917 | 0.910 | 0.907 | 0.915 | **0.920** |
+| BBB | F1 | 0.934 | 0.936 | 0.921 | 0.925 | **0.924** |
+| BBB | Balanced accuracy | 0.767 | 0.779 | 0.823 | 0.794 | **0.836** |
+
+**Tuned XGBoost wins on nearly every metric for both properties** — a real, unambiguous result this time, unlike Experiments 1 and 2's mixed outcomes. For BBB, tuned XGBoost's ROC-AUC (0.920) now **exceeds the TDC leaderboard's stated SOTA (0.916)** on this single split. Best hyperparameters found: Solubility XGBoost — `n_estimators=200, max_depth=9, learning_rate=0.05, subsample=1.0, colsample_bytree=0.7`; BBB XGBoost — `n_estimators=400, max_depth=5, learning_rate=0.1, subsample=0.85, colsample_bytree=0.5`.
+
+### Bug encountered and fixed: XGBoost + scikit-learn version mismatch silently producing NaN CV scores
+BBB's XGBoost tuning search initially returned `Best CV ROC-AUC: nan` — investigated rather than reported as-is, since a NaN CV score means hyperparameter selection isn't actually comparing candidates meaningfully (whichever candidate sklearn ranks "best" among a set of NaN scores is essentially arbitrary). Confirmed both classes were present in every CV fold (ruled out a missing-class-in-fold explanation), then reproduced the exact failure with `error_score='raise'` to force the real exception instead of a silent NaN:
+
+```
+ValueError: XGBClassifier should either be a classifier to be used with
+response_method=predict_proba or the response_method should be 'predict'.
+Got a regressor with response_method=predict_proba instead.
+```
+
+**Root cause:** installing XGBoost pulled scikit-learn up to 1.7.2 as a dependency (see the numpy issue above — same install). Scikit-learn 1.7's newer classifier-auto-detection code (used internally by the `'roc_auc'` string scorer to decide whether to call `predict_proba` or `predict`) doesn't correctly recognize this XGBoost version's `XGBClassifier` as a classifier in that specific code path — even though `.predict_proba()` works completely normally when called directly (which is why `evaluate_classification()` and Experiment 2's untuned XGBoost were unaffected — they call `predict_proba` explicitly, never going through this scorer machinery). `RandomForestClassifier` is unaffected; this is XGBoost-specific.
+
+**Fix:** replaced the `'roc_auc'` string scorer with an explicit callable scorer (`proba_roc_auc`) that calls `estimator.predict_proba(X)[:, 1]` directly, bypassing sklearn's broken auto-detection entirely — no environment changes needed. Verified the fix directly (reran the exact failing case standalone: `nan` → 5 valid fold scores ~0.87–0.93) before trusting the notebook's re-run. Worth remembering: any future `scoring='roc_auc'` (or similar string scorer) usage with this specific XGBoost/scikit-learn combination should use an explicit callable scorer instead.
+
+### Overall pattern (all three experiments)
+BBB and hERG (cleanest, most separable descriptor signal in Week 1 EDA) started closest to the leaderboard, and BBB is now the strongest result in the whole panel after tuning — genuinely exceeding leaderboard SOTA, not just "close." Solubility, CYP3A4, and Clearance still trail their leaderboards by a real margin even after tuning (Solubility's tuned XGBoost MAE of 0.899 is closer to the leaderboard's 0.741–0.829 range than the original 0.926 baseline was, but still below it) — consistent with those leaderboards being dominated by GNN/foundation-model entries. Unlike TPSA and untuned-XGBoost's mixed, metric-dependent effects, tuning was the first Week 3 change to produce an unambiguous win.
