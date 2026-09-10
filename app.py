@@ -11,16 +11,19 @@ saved to models/*.pkl by that notebook's last cell.
 """
 
 import os
+from urllib.parse import quote
 
 import joblib
 import numpy as np
 import pandas as pd
+import requests
 import streamlit as st
 from rdkit import Chem
 from rdkit.Chem import AllChem, Descriptors, Draw
 from rdkit.DataStructs import ConvertToNumpyArray
 
 MODEL_DIR = "models"
+PUBCHEM_HEADERS = {"User-Agent": "admet-property-prediction-demo"}
 
 EXAMPLE_MOLECULES = {
     "Aspirin": "CC(=O)OC1=CC=CC=C1C(=O)O",
@@ -74,6 +77,38 @@ def featurize_one(mol, radius=2, n_bits=2048):
     fp_cols = [f"fp_{i}" for i in range(n_bits)]
     row = {**dict(zip(fp_cols, fp)), **descriptors}
     return pd.DataFrame([row]), descriptors
+
+
+# ---------------------------------------------------------------------------
+# PubChem name lookup -- lets users search by molecule name when they don't
+# have a SMILES string handy, without requiring one (manual paste still works).
+# ---------------------------------------------------------------------------
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def pubchem_search_names(query, limit=8):
+    query = query.strip()
+    if len(query) < 2:
+        return []
+    url = f"https://pubchem.ncbi.nlm.nih.gov/rest/autocomplete/compound/{quote(query)}/json"
+    try:
+        resp = requests.get(url, params={"limit": limit}, headers=PUBCHEM_HEADERS, timeout=5)
+        resp.raise_for_status()
+        return resp.json().get("dictionary_terms", {}).get("compound", [])
+    except requests.RequestException:
+        return []
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def pubchem_name_to_smiles(name):
+    url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{quote(name)}/property/SMILES/JSON"
+    try:
+        resp = requests.get(url, headers=PUBCHEM_HEADERS, timeout=5)
+        if not resp.ok:
+            return None
+        properties = resp.json().get("PropertyTable", {}).get("Properties", [])
+        return properties[0]["SMILES"] if properties else None
+    except (requests.RequestException, KeyError, ValueError):
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -159,7 +194,26 @@ for col, (name, smi) in zip(example_cols, EXAMPLE_MOLECULES.items()):
     if col.button(name):
         st.session_state.smiles_input = smi
 
-smiles = st.text_input("SMILES string", key="smiles_input")
+st.subheader("Or search by name")
+st.caption("Don't have a SMILES string handy? Search PubChem by molecule name instead.")
+name_query = st.text_input("Molecule name", placeholder="e.g. aspirin", key="name_query")
+
+if name_query.strip():
+    matches = pubchem_search_names(name_query)
+    if matches:
+        st.caption("Select a match to fill in its SMILES string:")
+        match_cols = st.columns(4)
+        for i, match_name in enumerate(matches):
+            if match_cols[i % 4].button(match_name, key=f"pubchem_match_{i}_{match_name}"):
+                smi = pubchem_name_to_smiles(match_name)
+                if smi:
+                    st.session_state.smiles_input = smi
+                else:
+                    st.error(f"Couldn't fetch a SMILES string for '{match_name}' from PubChem.")
+    else:
+        st.caption("No PubChem matches yet -- keep typing, or paste a SMILES string directly below.")
+
+smiles = st.text_input("Or paste a SMILES string directly", key="smiles_input")
 predict_clicked = st.button("Predict", type="primary")
 
 if predict_clicked:
