@@ -22,6 +22,10 @@ data/
 *.pth
 *.h5
 
+# Week 5: trained models the Streamlit app loads at runtime (needed in the repo
+# for deployment, unlike other .pkl artifacts above)
+!models/*.pkl
+
 # Environment / secrets
 .env
 
