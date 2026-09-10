@@ -1,5 +1,7 @@
 # ADMET Property Prediction
 
+**[Try the live demo →](https://admet-property-prediction-xr4gxq6otyljzt9ggttkgs.streamlit.app/)** Paste a SMILES string, get predictions across all 5 properties below.
+
 ## Overview
 The goal of this project was to build machine learning models that predict a molecule's ADMET properties (absorption, distribution, metabolism, excretion, and toxicity) directly from its chemical structure. This is one of the most common early-stage screening tasks computational drug discovery teams use to decide which candidate compounds are worth advancing.
 
@@ -28,6 +30,10 @@ Finally, two analyses went beyond just reporting a metric. Permutation importanc
 ├── Featurization_Baseline.ipynb   # Week 2: fingerprints/descriptors, baseline RF per property (sealed/frozen)
 ├── Model_Improvement.ipynb        # Week 3: TPSA, XGBoost, hyperparameter tuning, feature importance, failure modes
 ├── RDKit-test.ipynb               # Week 0: environment sanity check
+├── app.py                         # Week 5: Streamlit demo app (live link above)
+├── models/                        # tuned XGBoost models per property, saved by Model_Improvement.ipynb
+├── requirements.txt               # pip deps for Streamlit Community Cloud (app.py only)
+├── packages.txt                   # apt deps for Streamlit Community Cloud (rdkit's Draw module)
 ├── NOTES.md                       # detailed write-ups, reasoning, and technical concept explanations
 ├── CLAUDE.md                      # running project log / status
 ├── environment.yml                # reproducible conda environment
@@ -42,6 +48,13 @@ conda env create -f environment.yml
 conda activate admet
 ```
 No manual data download needed: PyTDC fetches each dataset automatically the first time a notebook calls `.get_split()`, and caches it locally under `data/`.
+
+To run the demo app locally instead of using the live link:
+```bash
+conda activate admet
+pip install streamlit
+streamlit run app.py
+```
 
 ## Results
 Final result per property (best model after XGBoost + hyperparameter tuning), each evaluated on its own correct TDC leaderboard metric, compared against the TDC leaderboard's published state-of-the-art on that same metric:
@@ -68,6 +81,8 @@ BBB stood out the most, with the tuned model reaching a ROC-AUC of 0.920, the on
 
 ## Future Work
 This project deliberately used classical decision-tree-based models (Random Forest, XGBoost) rather than a deep learning approach. A natural next step would be a Graph Neural Network (GNN), which many of the top TDC leaderboard entries use. I considered this from the start, but since this was one of my first solo projects, I wanted to make sure I fully understood every step of this workflow before taking on something more advanced.
+
+A [Streamlit demo](https://admet-property-prediction-xr4gxq6otyljzt9ggttkgs.streamlit.app/) is deployed as an interactive way to try the models on any molecule, beyond the fixed test sets used for evaluation above.
 
 ## Acknowledgments
 - [Therapeutics Data Commons](https://tdcommons.ai/) for the datasets and the ADMET Benchmark Group leaderboards used for comparison throughout.
