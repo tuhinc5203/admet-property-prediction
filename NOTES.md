@@ -248,5 +248,36 @@ Got a regressor with response_method=predict_proba instead.
 
 **Fix:** replaced the `'roc_auc'` string scorer with an explicit callable scorer (`proba_roc_auc`) that calls `estimator.predict_proba(X)[:, 1]` directly, bypassing sklearn's broken auto-detection entirely — no environment changes needed. Verified the fix directly (reran the exact failing case standalone: `nan` → 5 valid fold scores ~0.87–0.93) before trusting the notebook's re-run. Worth remembering: any future `scoring='roc_auc'` (or similar string scorer) usage with this specific XGBoost/scikit-learn combination should use an explicit callable scorer instead.
 
-### Overall pattern (all three experiments)
-BBB and hERG (cleanest, most separable descriptor signal in Week 1 EDA) started closest to the leaderboard, and BBB is now the strongest result in the whole panel after tuning — genuinely exceeding leaderboard SOTA, not just "close." Solubility, CYP3A4, and Clearance still trail their leaderboards by a real margin even after tuning (Solubility's tuned XGBoost MAE of 0.899 is closer to the leaderboard's 0.741–0.829 range than the original 0.926 baseline was, but still below it) — consistent with those leaderboards being dominated by GNN/foundation-model entries. Unlike TPSA and untuned-XGBoost's mixed, metric-dependent effects, tuning was the first Week 3 change to produce an unambiguous win.
+### Experiment 4: Permutation importance (Solubility + BBB, tuned XGBoost)
+Fixes Experiment 1's open problem directly: MDI feature importance (used there) is biased toward continuous features over binary ones, so "TPSA ranks top-5" couldn't be trusted as a real importance signal on its own. Permutation importance measures something concrete instead — shuffle a feature (or, for the fingerprint, all 2048 bits together as one block) across the test set, breaking its link to the target while leaving everything else intact, and measure how much the model's real test score drops. Run on each property's **tuned XGBoost** model (the best model found, from Experiment 3), scored on the actual leaderboard metric (MAE for Solubility, ROC-AUC for BBB), 10 repeats per group to average out shuffle noise.
+
+**Solubility — MolLogP dominates, and it's not close:**
+
+| Group | Importance (drop in neg-MAE when shuffled) |
+|---|---|
+| **MolLogP** | **+0.887** |
+| Fingerprint (all 2048 bits) | +0.314 |
+| MolWt | +0.235 |
+| TPSA | +0.060 |
+| NumHDonors | +0.018 |
+| NumHAcceptors | +0.013 |
+| NumRotatableBonds | +0.008 |
+
+Shuffling MolLogP *alone* costs almost as much accuracy as the model's entire baseline error (baseline MAE 0.899, MolLogP's importance 0.887) — and nearly 3x more damage than scrambling the entire 2048-bit fingerprint block. **This recovers something chemically sensible, not just a number:** lipophilicity (LogP) is the textbook primary driver of aqueous solubility — it's the basis of the General Solubility Equation and half of Lipinski's Rule of Five — and Week 1 EDA independently found MolLogP was the single cleanest descriptor-vs-target trend for this exact property. Two unrelated methods (a scatter plot by eye, and a rigorous permutation test on the final tuned model) agree. MolWt ranking above TPSA is also chemically plausible — molecular size is a known secondary solubility factor (bigger molecules pack differently into a crystal lattice, generally reducing solubility).
+
+**BBB — TPSA is the top individual descriptor, resolving Experiment 1's open puzzle:**
+
+| Group | Importance (drop in ROC-AUC when shuffled) |
+|---|---|
+| Fingerprint (all 2048 bits) | +0.099 |
+| **TPSA** | **+0.035** |
+| NumHDonors | +0.021 |
+| MolWt | +0.009 |
+| MolLogP | +0.009 |
+| NumHAcceptors | +0.003 |
+| NumRotatableBonds | +0.001 |
+
+TPSA is clearly the most important *individual descriptor* here — consistent with Week 1 EDA's finding (the cleanest class separation of any descriptor in the whole panel, reproducing the known "TPSA < ~90" BBB-penetration rule of thumb) and with Experiment 1's MDI ranking (TPSA was #2 there too). **This resolves, rather than contradicts, Experiment 1's puzzle:** MDI said TPSA was important, and it genuinely is (permutation importance agrees) — but Experiment 1's actual question was different: does *adding* TPSA as a new feature improve the model's score? Those are two different questions. The model relies heavily on TPSA once it's present (both importance methods agree on that), but the fingerprint likely already carried overlapping, substitutable signal for the same underlying chemistry (polar-group patterns show up as specific substructure bits) — so removing TPSA doesn't cost the model much (Experiment 1: BBB's score barely moved), even though the model leans on TPSA heavily when it's available. Feature importance and feature *necessity* are genuinely different questions when features are correlated/redundant with each other, and this is a clean real example of that distinction.
+
+### Overall pattern (all four experiments)
+BBB and hERG (cleanest, most separable descriptor signal in Week 1 EDA) started closest to the leaderboard, and BBB is now the strongest result in the whole panel after tuning — genuinely exceeding leaderboard SOTA, not just "close." Solubility, CYP3A4, and Clearance still trail their leaderboards by a real margin even after tuning (Solubility's tuned XGBoost MAE of 0.899 is closer to the leaderboard's 0.741–0.829 range than the original 0.926 baseline was, but still below it) — consistent with those leaderboards being dominated by GNN/foundation-model entries. Permutation importance (Experiment 4) is the first analysis in the whole project to directly connect a model's behavior back to known medicinal chemistry with a trustworthy method, not just a plausible-looking correlation — exactly the "scientific maturity" signal the project plan calls out as the differentiator for Week 3.
