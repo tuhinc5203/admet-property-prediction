@@ -25,6 +25,9 @@ data/
 # Environment / secrets
 .env
 
+# Personal planning doc, kept local only
+admet-prediction-project-plan.md
+
 # VS Code (keep shared settings, ignore user-specific)
 .vscode/*
 !.vscode/settings.json
