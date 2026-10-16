@@ -4,6 +4,8 @@
 
 Paste a SMILES string (or search a molecule by name) and get predictions for all 5 properties below. If the app has been idle, the first load can be slow while it wakes up. For the fastest way to try it, [run the demo locally](#setup) (no retraining needed).
 
+![ADMET Property Predictor demo front page](results/ADMET_frontpage.png)
+
 **Where to look first:** the [Results](#results) table and [Key Findings](#key-findings) below summarize the outcome, `notebooks/Model_Improvement.ipynb` holds the main modeling work, and `docs/NOTES.md` has the detailed reasoning behind each decision.
 
 ## Overview
@@ -36,7 +38,7 @@ Finally, two analyses went beyond just reporting a metric. Permutation importanc
 │   ├── Featurization_Baseline.ipynb   # Week 2: fingerprints/descriptors, baseline RF per property
 │   └── Model_Improvement.ipynb        # Week 3: TPSA, XGBoost, tuning, feature importance, failure modes
 ├── models/                        # tuned XGBoost model per property, saved by Model_Improvement.ipynb
-├── results/                       # figures used in this README
+├── results/                       # figures used in this README (including a demo screenshot)
 ├── docs/
 │   └── NOTES.md                   # detailed write-ups, reasoning, and technical concept explanations
 ├── .streamlit/config.toml         # demo app theme
