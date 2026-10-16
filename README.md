@@ -2,7 +2,7 @@
 
 **Live demo: https://admet-property-prediction-xr4gxq6otyljzt9ggttkgs.streamlit.app/**
 
-Paste a SMILES string (or search a molecule by name) and get predictions for all 5 properties below. If the app has been idle, the first load can be slow while it wakes up. For the fastest way to try it, [run the demo locally](#setup) (no retraining needed). Or see a [screenshot of the app](results/ADMET_frontpage.png).
+Paste a SMILES string (or search a molecule by name) and get predictions for all 5 properties below. If the app has been idle, the first load can be slow while it wakes up. For the fastest way to try it, [run the demo locally](#setup). Or see a [screenshot of the app](results/ADMET_frontpage.png).
 
 **Where to look first:** the [Results](#results) table and [Key Findings](#key-findings) below summarize the outcome, `notebooks/Model_Improvement.ipynb` holds the main modeling work, and `docs/NOTES.md` has the detailed reasoning behind each decision.
 
