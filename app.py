@@ -1,9 +1,9 @@
 """
-Week 5 (optional): interactive Streamlit demo for the ADMET property
+Interactive Streamlit demo for the ADMET property
 prediction project. Paste a SMILES string, get predictions for all 5
 trained ADMET properties with plain-language interpretation.
 
-Reuses the exact featurization pipeline from Model_Improvement.ipynb
+Reuses the exact featurization pipeline from notebooks/Model_Improvement.ipynb
 (largest-fragment salt stripping, 2048-bit Morgan fingerprint + 6 RDKit
 descriptors) so predictions match what the notebooks report. Models are
 the final tuned-XGBoost `best_estimator_` objects from Experiment 3,
@@ -46,7 +46,7 @@ MODEL_FILES = {
 
 
 # ---------------------------------------------------------------------------
-# Featurization -- unchanged from Model_Improvement.ipynb, adapted to a
+# Featurization -- unchanged from notebooks/Model_Improvement.ipynb, adapted to a
 # single molecule instead of a DataFrame of many.
 # ---------------------------------------------------------------------------
 
@@ -135,44 +135,55 @@ def load_models():
 def interpret_solubility(logs):
     # Common LogS (log mol/L) solubility convention (e.g. Delaney/ESOL bins).
     if logs > -1:
-        return "Highly soluble", "🟢"
+        return "Highly soluble"
     if logs > -2:
-        return "Soluble", "🟢"
+        return "Soluble"
     if logs > -3:
-        return "Moderately soluble", "🟡"
+        return "Moderately soluble"
     if logs > -4:
-        return "Poorly soluble", "🟠"
-    return "Very poorly soluble", "🔴"
+        return "Poorly soluble"
+    return "Very poorly soluble"
 
 
-def interpret_binary(prob, positive_label, negative_label, positive_is_bad):
-    label = positive_label if prob >= 0.5 else negative_label
-    if positive_is_bad:
-        icon = "🔴" if prob >= 0.5 else "🟢"
-    else:
-        icon = "🟢" if prob >= 0.5 else "🟠"
-    return label, icon
+def interpret_binary(prob, positive_label, negative_label):
+    return positive_label if prob >= 0.5 else negative_label
 
 
 def interpret_clearance(value):
     # Dataset's own observed range is ~3-150 uL/min/1e6 cells (Clearance_Hepatocyte_AZ).
     # Heuristic tertiles relative to that range, not a clinical cutoff.
     if value < 15:
-        return "Low (relative to this dataset's typical 3-150 range)", "🟢"
+        return "Low (relative to this dataset's typical 3-150 range)"
     if value < 50:
-        return "Moderate (relative to this dataset's typical 3-150 range)", "🟡"
-    return "High (relative to this dataset's typical 3-150 range)", "🟠"
+        return "Moderate (relative to this dataset's typical 3-150 range)"
+    return "High (relative to this dataset's typical 3-150 range)"
 
 
 # ---------------------------------------------------------------------------
 # UI
 # ---------------------------------------------------------------------------
 
-st.set_page_config(page_title="ADMET Property Predictor", page_icon="🧪", layout="centered")
+st.set_page_config(page_title="ADMET Property Predictor", layout="centered")
 
-st.title("🧪 ADMET Property Predictor")
+# Minimal styling on top of the theme in .streamlit/config.toml.
+st.markdown(
+    """
+    <style>
+    #MainMenu, footer {visibility: hidden;}
+    .block-container {padding-top: 3rem; max-width: 760px;}
+    h1 {font-weight: 600; letter-spacing: -0.01em;}
+    h2, h3 {font-weight: 500;}
+    .stButton > button {border-radius: 4px; border: 1px solid #CFCABE; background: transparent;}
+    .stButton > button:hover {border-color: #3D5A6C; color: #3D5A6C;}
+    .stButton > button[kind="primary"] {background: #3D5A6C; color: #FAF8F4; border-color: #3D5A6C;}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.title("ADMET Property Predictor")
 st.caption(
-    "Paste a SMILES string to predict 5 ADMET properties: aqueous solubility, "
+    "Predict five ADMET properties from a molecule's structure: aqueous solubility, "
     "blood-brain barrier (BBB) permeability, hERG cardiotoxicity risk, CYP3A4 "
     "metabolic inhibition, and hepatocyte clearance."
 )
@@ -181,39 +192,38 @@ models, missing = load_models()
 if missing:
     st.error(
         "Model file(s) not found: " + ", ".join(missing) + ". "
-        "Run Model_Improvement.ipynb's last cell to generate them."
+        "Run notebooks/Model_Improvement.ipynb's last cell to generate them."
     )
     st.stop()
 
-st.subheader("Try an example")
-example_cols = st.columns(len(EXAMPLE_MOLECULES))
 if "smiles_input" not in st.session_state:
     st.session_state.smiles_input = EXAMPLE_MOLECULES["Aspirin"]
 
+st.markdown("**Examples**")
+example_cols = st.columns(len(EXAMPLE_MOLECULES))
 for col, (name, smi) in zip(example_cols, EXAMPLE_MOLECULES.items()):
-    if col.button(name):
+    if col.button(name, use_container_width=True):
         st.session_state.smiles_input = smi
 
-st.subheader("Or search by name")
-st.caption("Don't have a SMILES string handy? Search PubChem by molecule name instead.")
-name_query = st.text_input("Molecule name", placeholder="e.g. aspirin", key="name_query")
+with st.expander("Search PubChem by molecule name"):
+    st.caption("No SMILES string handy? Look a molecule up by name and select a match.")
+    name_query = st.text_input("Molecule name", placeholder="e.g. aspirin", key="name_query")
 
-if name_query.strip():
-    matches = pubchem_search_names(name_query)
-    if matches:
-        st.caption("Select a match to fill in its SMILES string:")
-        match_cols = st.columns(4)
-        for i, match_name in enumerate(matches):
-            if match_cols[i % 4].button(match_name, key=f"pubchem_match_{i}_{match_name}"):
-                smi = pubchem_name_to_smiles(match_name)
-                if smi:
-                    st.session_state.smiles_input = smi
-                else:
-                    st.error(f"Couldn't fetch a SMILES string for '{match_name}' from PubChem.")
-    else:
-        st.caption("No PubChem matches yet -- keep typing, or paste a SMILES string directly below.")
+    if name_query.strip():
+        matches = pubchem_search_names(name_query)
+        if matches:
+            match_cols = st.columns(4)
+            for i, match_name in enumerate(matches):
+                if match_cols[i % 4].button(match_name, key=f"pubchem_match_{i}_{match_name}", use_container_width=True):
+                    smi = pubchem_name_to_smiles(match_name)
+                    if smi:
+                        st.session_state.smiles_input = smi
+                    else:
+                        st.error(f"Couldn't fetch a SMILES string for '{match_name}' from PubChem.")
+        else:
+            st.caption("No PubChem matches yet. Keep typing, or paste a SMILES string below.")
 
-smiles = st.text_input("Or paste a SMILES string directly", key="smiles_input")
+smiles = st.text_input("SMILES string", key="smiles_input")
 predict_clicked = st.button("Predict", type="primary")
 
 if predict_clicked:
@@ -225,9 +235,10 @@ if predict_clicked:
     mol = largest_fragment(mol_raw)
     X, descriptors = featurize_one(mol)
 
+    st.divider()
     col_img, col_desc = st.columns([1, 1.2])
     with col_img:
-        img = Draw.MolToImage(mol, size=(300, 300))
+        img = Draw.MolToImage(mol, size=(300, 300), fitImage=True)
         st.image(img, caption="Largest fragment used for prediction")
     with col_desc:
         st.markdown("**Computed descriptors**")
@@ -240,38 +251,38 @@ if predict_clicked:
     st.subheader("Predictions")
 
     sol_pred = models["Solubility"].predict(X)[0]
-    sol_label, sol_icon = interpret_solubility(sol_pred)
+    sol_label = interpret_solubility(sol_pred)
 
     bbb_prob = models["BBB"].predict_proba(X)[0, 1]
-    bbb_label, bbb_icon = interpret_binary(bbb_prob, "Permeable", "Not permeable", positive_is_bad=False)
+    bbb_label = interpret_binary(bbb_prob, "Permeable", "Not permeable")
 
     herg_prob = models["hERG"].predict_proba(X)[0, 1]
-    herg_label, herg_icon = interpret_binary(herg_prob, "Potential blocker (caution)", "Low risk", positive_is_bad=True)
+    herg_label = interpret_binary(herg_prob, "Potential blocker (caution)", "Low risk")
 
     cyp_prob = models["CYP3A4"].predict_proba(X)[0, 1]
-    cyp_label, cyp_icon = interpret_binary(cyp_prob, "Predicted inhibitor", "Predicted non-inhibitor", positive_is_bad=True)
+    cyp_label = interpret_binary(cyp_prob, "Predicted inhibitor", "Predicted non-inhibitor")
 
     clr_pred = models["Clearance"].predict(X)[0]
-    clr_label, clr_icon = interpret_clearance(clr_pred)
+    clr_label = interpret_clearance(clr_pred)
 
     rows = [
-        ("Solubility (LogS)", f"{sol_pred:.2f}", f"{sol_icon} {sol_label}"),
-        ("BBB Permeability", f"{bbb_prob:.1%} probability", f"{bbb_icon} {bbb_label}"),
-        ("hERG Blockade", f"{herg_prob:.1%} probability", f"{herg_icon} {herg_label}"),
-        ("CYP3A4 Inhibition", f"{cyp_prob:.1%} probability", f"{cyp_icon} {cyp_label}"),
-        ("Clearance (uL/min/1e6 cells)", f"{clr_pred:.1f}", f"{clr_icon} {clr_label}"),
+        ("Solubility (LogS)", f"{sol_pred:.2f}", sol_label),
+        ("BBB Permeability", f"{bbb_prob:.1%} probability", bbb_label),
+        ("hERG Blockade", f"{herg_prob:.1%} probability", herg_label),
+        ("CYP3A4 Inhibition", f"{cyp_prob:.1%} probability", cyp_label),
+        ("Clearance (uL/min/1e6 cells)", f"{clr_pred:.1f}", clr_label),
     ]
     results_df = pd.DataFrame(rows, columns=["Property", "Model output", "Interpretation"])
     st.table(results_df.set_index("Property"))
 
     st.caption(
         "Educational project, not for clinical or regulatory use. Model performance "
-        "and known limitations (e.g. failure modes for charged/atypical molecules) "
-        "are documented in README.md and NOTES.md."
+        "and known limitations (e.g. failure modes for charged or atypical molecules) "
+        "are documented in the README and docs/NOTES.md."
     )
 
 st.divider()
 st.caption(
-    "Models: tuned XGBoost per property, scaffold-split trained, from "
+    "Tuned XGBoost model per property, trained on scaffold splits. Source: "
     "[admet-property-prediction](https://github.com/tuhinc5203/admet-property-prediction)."
 )

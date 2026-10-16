@@ -1,6 +1,10 @@
 # ADMET Property Prediction
 
-**[Try the live demo →](https://admet-property-prediction-xr4gxq6otyljzt9ggttkgs.streamlit.app/)** Paste a SMILES string, get predictions across all 5 properties below.
+**Live demo: https://admet-property-prediction-xr4gxq6otyljzt9ggttkgs.streamlit.app/**
+
+Paste a SMILES string (or search a molecule by name) and get predictions for all 5 properties below. If the app has been idle, the first load can be slow while it wakes up. For the fastest way to try it, [run the demo locally](#setup) (no retraining needed).
+
+**Where to look first:** the [Results](#results) table and [Key Findings](#key-findings) below summarize the outcome, `notebooks/Model_Improvement.ipynb` holds the main modeling work, and `docs/NOTES.md` has the detailed reasoning behind each decision.
 
 ## Overview
 The goal of this project was to build machine learning models that predict a molecule's ADMET properties (absorption, distribution, metabolism, excretion, and toxicity) directly from its chemical structure. This is one of the most common early-stage screening tasks computational drug discovery teams use to decide which candidate compounds are worth advancing.
@@ -8,7 +12,7 @@ The goal of this project was to build machine learning models that predict a mol
 ## Motivation
 I'm currently pursuing a master's at UCSF in AI Computational Drug Design and Development (AICD3), and applied computational drug discovery roles like this are exactly the kind of industry position I'm aiming for. ADMET properties are one of the fundamentals taught early in this field, critical to actually designing viable drugs, and a class covering them recently is what inspired me to turn the topic into a full project of my own.
 
-My coursework so far hasn't given me this kind of build-it-yourself, end-to-end experience, and I'm not yet part of an on-campus lab project, so this was my way of getting real hands-on practice: learning how to actually build and evaluate a model, work with public datasets, and use tools like VS Code and Claude Code, applied specifically to the drug discovery space rather than as a generic ML exercise.
+This is the first project I decided to tackle, and it was my way of getting real hands-on practice: learning how to actually build and evaluate a model, work with public datasets, and use tools like VS Code and Claude Code, applied specifically to the drug discovery space rather than as a generic ML exercise.
 
 ## Datasets
 All the data came from Therapeutics Data Commons' (TDC) "ADMET Benchmark Group," which contains 22 standardized property-prediction tasks with train/test splits already defined. I selected 5 properties covered in my coursework at UCSF: Solubility, BBB permeability, hERG blockade, CYP3A4 inhibition, and Clearance.
@@ -26,35 +30,39 @@ Finally, two analyses went beyond just reporting a metric. Permutation importanc
 
 ## Repository Structure
 ```
-├── Data_EDA.ipynb                 # Week 1: dataset loading, cleaning, exploratory analysis
-├── Featurization_Baseline.ipynb   # Week 2: fingerprints/descriptors, baseline RF per property (sealed/frozen)
-├── Model_Improvement.ipynb        # Week 3: TPSA, XGBoost, hyperparameter tuning, feature importance, failure modes
-├── RDKit-test.ipynb               # Week 0: environment sanity check
-├── app.py                         # Week 5: Streamlit demo app (live link above)
-├── models/                        # tuned XGBoost models per property, saved by Model_Improvement.ipynb
-├── requirements.txt               # pip deps for Streamlit Community Cloud (app.py only)
-├── packages.txt                   # apt deps for Streamlit Community Cloud (rdkit's Draw module)
-├── NOTES.md                       # detailed write-ups, reasoning, and technical concept explanations
-├── CLAUDE.md                      # running project log / status
-├── environment.yml                # reproducible conda environment
-├── results/
-│   └── results_summary.png        # final results vs. TDC leaderboard, all 5 properties
-└── data/                          # downloaded automatically by PyTDC, not tracked in git
+├── app.py                         # Streamlit demo app (live demo, linked above)
+├── notebooks/
+│   ├── Data_EDA.ipynb                 # Week 1: dataset loading, cleaning, exploratory analysis
+│   ├── Featurization_Baseline.ipynb   # Week 2: fingerprints/descriptors, baseline RF per property
+│   └── Model_Improvement.ipynb        # Week 3: TPSA, XGBoost, tuning, feature importance, failure modes
+├── models/                        # tuned XGBoost model per property, saved by Model_Improvement.ipynb
+├── results/                       # figures used in this README
+├── docs/
+│   └── NOTES.md                   # detailed write-ups, reasoning, and technical concept explanations
+├── .streamlit/config.toml         # demo app theme
+├── environment.yml                # reproducible conda environment (notebooks)
+├── requirements.txt               # pip deps for Streamlit Community Cloud
+├── packages.txt                   # apt deps for Streamlit Community Cloud (RDKit's Draw module)
+└── LICENSE                        # MIT
 ```
+Datasets are downloaded automatically by PyTDC into a local `data/` folder, which is not tracked in git.
 
 ## Setup
 ```bash
+git clone https://github.com/tuhinc5203/admet-property-prediction.git
+cd admet-property-prediction
 conda env create -f environment.yml
 conda activate admet
 ```
-No manual data download needed: PyTDC fetches each dataset automatically the first time a notebook calls `.get_split()`, and caches it locally under `data/`.
+No manual data download needed: PyTDC fetches each dataset automatically the first time a notebook calls `.get_split()`, and caches it locally under `data/`. Run notebooks from inside the `notebooks/` folder (e.g. open them in VS Code or Jupyter), since they save models to `../models/`.
 
-To run the demo app locally instead of using the live link:
+To run the demo app locally, which is quicker than the hosted version (the trained models are included in `models/`, so no retraining is needed):
 ```bash
 conda activate admet
 pip install streamlit
 streamlit run app.py
 ```
+The app opens at http://localhost:8501.
 
 ## Results
 Final result per property (best model after XGBoost + hyperparameter tuning), each evaluated on its own correct TDC leaderboard metric, compared against the TDC leaderboard's published state-of-the-art on that same metric:
@@ -69,7 +77,7 @@ Final result per property (best model after XGBoost + hyperparameter tuning), ea
 
 ![Results summary: our tuned model vs. TDC leaderboard SOTA across all 5 properties](results/results_summary.png)
 
-BBB stood out the most, with the tuned model reaching a ROC-AUC of 0.920, the only property where it actually beat the leaderboard's published SOTA (0.916). hERG and CYP3A4 fell short of their leaderboard numbers but stayed reasonably close. Solubility and Clearance trailed by the widest margins, for different reasons: Solubility's leaderboard is dominated by graph neural network approaches this classical model isn't competing directly against, while Clearance is a fundamentally hard property for everyone (even TDC's own SOTA is a fairly weak correlation), compounded by data-quality issues in the dataset itself (documented in `NOTES.md`).
+BBB stood out the most, with the tuned model reaching a ROC-AUC of 0.920, the only property where it actually beat the leaderboard's published SOTA (0.916). hERG and CYP3A4 fell short of their leaderboard numbers but stayed reasonably close. Solubility and Clearance trailed by the widest margins, for different reasons: Solubility's leaderboard is dominated by graph neural network approaches this classical model isn't competing directly against, while Clearance is a fundamentally hard property for everyone (even TDC's own SOTA is a fairly weak correlation), compounded by data-quality issues in the dataset itself (documented in `docs/NOTES.md`).
 
 ## Key Findings
 

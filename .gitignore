@@ -32,7 +32,9 @@ data/
 # Personal planning doc, kept local only
 admet-prediction-project-plan.md
 
-# VS Code (keep shared settings, ignore user-specific)
-.vscode/*
-!.vscode/settings.json
-!.vscode/extensions.json
+
+# Local-only dev tooling and project log
+CLAUDE.md
+.claude/
+.devcontainer/
+.vscode/
